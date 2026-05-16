@@ -5,8 +5,49 @@ import { AuthContext } from '../../store/AuthContext';
 import { toast } from 'react-hot-toast';
 import { 
   FiCreditCard, FiHome, FiBriefcase, FiMap, FiDollarSign, FiTool, FiGlobe, 
-  FiArrowRight, FiArrowLeft, FiCheckCircle, FiClock, FiSun, FiPrinter, FiPlus
+  FiArrowRight, FiArrowLeft, FiCheckCircle, FiClock, FiSun, FiPrinter, FiPlus, FiClipboard, FiChevronDown, FiChevronUp
 } from 'react-icons/fi';
+import { serviceRequirements } from '../../data/serviceRequirements';
+
+const WhatToBring = ({ serviceId }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const requirements = serviceRequirements[serviceId] || [];
+
+  if (requirements.length === 0) return null;
+
+  return (
+    <div className="mt-4">
+      <button 
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        className="flex items-center gap-1.5 text-slate-400 hover:text-amber-600 transition-colors text-[11px] font-bold uppercase tracking-wider"
+      >
+        <FiClipboard size={12} />
+        📋 {requirements.length} items required
+        {isOpen ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />}
+      </button>
+      
+      {isOpen && (
+        <div 
+          className="mt-2 p-3 bg-slate-50 border-l-[3px] border-amber-500 rounded-r-xl animate-in slide-in-from-top-2 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-2">What to bring:</p>
+          <ul className="space-y-1.5">
+            {requirements.map((req, i) => (
+              <li key={i} className="flex items-start gap-2 text-[13px] text-slate-600 leading-tight">
+                <FiCheckCircle className="text-amber-500 mt-0.5 shrink-0" size={12} />
+                <span>{req}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const officeServices = {
   "Civil Registration Office": [
@@ -69,6 +110,8 @@ const offices = [
 const BookAppointment = () => {
   const { user } = useContext(AuthContext);
   const [currentStep, setCurrentStep] = useState(1);
+  const [allServices, setAllServices] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedOffice, setSelectedOffice] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
   const [selectedDate, setSelectedDate] = useState('');
@@ -78,6 +121,22 @@ const BookAppointment = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const res = await api.get('/services');
+        setAllServices(res.data);
+      } catch (error) {
+        toast.error('Failed to load services');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchServices();
+  }, []);
+
+  const filteredServices = allServices.filter(s => s.department === selectedOffice);
 
   const isPriority = user?.age >= 60;
 
@@ -95,8 +154,21 @@ const BookAppointment = () => {
   const generateTicket = async () => {
     setSubmitting(true);
     try {
-      // Simulate API call to save booking
-      // await api.post('/appointments', { ... });
+      // Find the database ID for the selected service name
+      const dbService = allServices.find(s => s.name === selectedService.name);
+      
+      if (!dbService) {
+        toast.error('Service not synced with database. Please re-seed.');
+        setSubmitting(false);
+        return;
+      }
+
+      // Save to backend
+      const res = await api.post('/appointments', {
+        service_id: dbService.id,
+        appointment_date: selectedDate,
+        time_slot: selectedSession === 'morning' ? 'Morning' : 'Afternoon'
+      });
 
       const officeCode = {
         "Civil Registration Office": "CR",
@@ -106,17 +178,18 @@ const BookAppointment = () => {
         "Tax & Finance Office": "TF",
         "Construction & Urban Planning Office": "CU",
         "Public Services Office": "PS",
-      }[selectedOffice];
+      }[selectedOffice] || "GS";
 
       const number = String(Math.floor(Math.random() * 900) + 100);
       const queueNumber = `${officeCode}-${number}`;
-      const bookingRef = `AM-${Date.now().toString().slice(-8)}`;
+      const bookingRef = `AM-${res.data.id || Date.now().toString().slice(-8)}`;
       const issuedAt = new Date().toLocaleString();
 
       setTicketData({ queueNumber, bookingRef, issuedAt });
       setTicketGenerated(true);
       toast.success('Appointment confirmed!');
     } catch (error) {
+      console.error(error);
       toast.error('Failed to confirm appointment');
     } finally {
       setSubmitting(false);
@@ -324,6 +397,7 @@ const BookAppointment = () => {
                         {service.fee}
                       </span>
                     </div>
+                    <WhatToBring serviceId={service.id} />
                   </div>
                   {selectedService?.id === service.id && (
                     <div className="flex justify-end mt-4">

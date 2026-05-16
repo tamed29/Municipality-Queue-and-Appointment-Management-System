@@ -90,7 +90,10 @@ const MyAppointments = () => {
                         <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center mr-3 shrink-0">
                           <MdEventNote size={16} />
                         </div>
-                        <span className="block">{appt.service_name}</span>
+                        <div className="flex flex-col">
+                          <span className="block font-bold text-secondary">{appt.service_name}</span>
+                          <span className="text-[10px] text-muted uppercase font-black tracking-widest mt-0.5">{appt.department}</span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-secondary">

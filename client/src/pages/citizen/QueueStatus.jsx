@@ -1,156 +1,214 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { toast } from 'react-hot-toast';
-import QueueBadge from '../../components/QueueBadge';
-import { MdGroups, MdOutlineAccessTimeFilled, MdRefresh } from 'react-icons/md';
+import { 
+  FiCreditCard, FiHome, FiBriefcase, FiMap, FiDollarSign, FiTool, FiGlobe, 
+  FiUsers, FiClock, FiRefreshCw, FiInfo, FiChevronRight, FiCheckCircle
+} from 'react-icons/fi';
+
+const officeIcons = {
+  "Civil Registration Office": FiCreditCard,
+  "Residence & Population Office": FiHome,
+  "Business & Trade Office": FiBriefcase,
+  "Land & Property Office": FiMap,
+  "Tax & Finance Office": FiDollarSign,
+  "Construction & Urban Planning Office": FiTool,
+  "Public Services Office": FiGlobe,
+};
 
 const QueueStatus = () => {
-  const [status, setStatus] = useState(null);
+  const [myStatus, setMyStatus] = useState(null);
+  const [summary, setSummary] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [services, setServices] = useState([]);
-  const [selectedService, setSelectedService] = useState('');
-  const [joining, setJoining] = useState(false);
+  const [selectedOffice, setSelectedOffice] = useState(null);
 
-  const fetchStatus = async () => {
+  const fetchData = async () => {
     try {
-      const res = await api.get('/queue/my-status');
-      setStatus(res.data);
+      // Fetch status separately to handle errors better
+      api.get('/queue/my-status').then(res => setMyStatus(res.data)).catch(err => console.error('Status fetch error', err));
+      
+      // Fetch summary
+      const summaryRes = await api.get('/queue/summary');
+      setSummary(summaryRes.data || []);
     } catch (error) {
-      console.error(error);
+      console.error('Failed to fetch queue summary', error);
+      toast.error('Failed to load queue stats');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchServices = async () => {
-    try {
-      const res = await api.get('/services');
-      setServices(res.data);
-      if (res.data.length > 0) setSelectedService(res.data[0].id);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
   useEffect(() => {
-    fetchStatus();
-    fetchServices();
-    
-    const interval = setInterval(fetchStatus, 10000); // Poll every 10s
+    fetchData();
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleJoinQueue = async () => {
-    setJoining(true);
-    try {
-      await api.post('/queue/checkin', { service_id: selectedService });
-      await fetchStatus();
-    } catch (error) {
-      alert(error.response?.data?.message || 'Failed to join queue');
-    } finally {
-      setJoining(false);
-    }
-  };
-
   if (loading) {
-    return <div className="flex justify-center items-center h-64 w-full"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div></div>;
+    return (
+      <div className="flex flex-col items-center justify-center h-96">
+        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-500 font-bold animate-pulse">Loading live queue status...</p>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-3xl mx-auto w-full min-w-0">
-      <h1 className="text-2xl font-bold text-secondary mb-6 block w-full text-center sm:text-left">Queue Status</h1>
-
-      {!status ? (
-        <div className="bg-card rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-8 text-center border border-border w-full min-w-0">
-          <div className="w-20 h-20 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-6 shrink-0">
-            <MdGroups size={40} />
-          </div>
-          <h2 className="text-xl font-bold text-secondary mb-2 block w-full">You are not in a queue</h2>
-          <p className="text-muted mb-8 mx-auto block w-full">Select a service below to join the virtual queue and save your spot before arriving at the center.</p>
-          
-          <div className="max-w-md mx-auto space-y-4 w-full">
-            <div className="text-left w-full">
-              <label className="block text-sm font-bold text-secondary mb-3 w-full text-center">Select Service to Join</label>
-              <div className="flex overflow-x-auto pb-4 gap-3 scrollbar-hide snap-x scroll-pl-4">
-                {services.map(s => (
-                  <div 
-                    key={s.id}
-                    onClick={() => setSelectedService(s.id)}
-                    className={`min-w-[140px] p-4 border rounded-[var(--radius-card)] cursor-pointer transition-all snap-start flex flex-col items-center ${
-                      selectedService === s.id 
-                        ? 'border-primary bg-primary/5 ring-2 ring-primary/20' 
-                        : 'border-border bg-white hover:border-primary/50'
-                    }`}
-                  >
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 shrink-0 ${
-                      selectedService === s.id ? 'bg-primary text-white' : 'bg-surface text-primary'
-                    }`}>
-                      <MdGroups size={20} />
-                    </div>
-                    <span className="text-xs font-bold text-secondary block w-full text-center truncate">{s.name}</span>
-                    <span className="text-[10px] text-muted block w-full text-center truncate">{s.department}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <button 
-              onClick={handleJoinQueue}
-              disabled={joining || services.length === 0}
-              className="w-full py-4 bg-primary text-white font-bold rounded-[var(--radius-btn)] hover:bg-primary/90 transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2"
-            >
-              {joining ? 'Joining...' : 'Join Virtual Queue'}
-            </button>
-          </div>
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Queue Status</h1>
+          <p className="text-slate-500 font-medium">Real-time monitoring of all service counters</p>
         </div>
-      ) : (
-        <div className="bg-card rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-8 text-center border-t-8 border-primary relative overflow-hidden w-full min-w-0">
-          {status.status === 'serving' && (
-            <div className="absolute top-0 left-0 w-full bg-success text-white py-2 text-sm font-bold uppercase tracking-widest animate-pulse">
-              It is your turn! Please proceed to counter.
-            </div>
-          )}
-          
-          <div className="flex flex-col sm:flex-row justify-between items-center sm:items-start mb-6 mt-4 gap-4 w-full">
-            <div className="text-center sm:text-left min-w-0">
-              <p className="text-sm text-muted font-medium uppercase tracking-wider mb-1 block w-full">Service</p>
-              <h3 className="font-bold text-secondary text-lg block w-full">{status.service_name}</h3>
-            </div>
-            <QueueBadge type={status.queue_type} />
-          </div>
-          
-          <div className="py-10 border-y border-border my-6 w-full">
-            <p className="text-sm font-medium text-muted uppercase tracking-widest mb-2 block w-full">Your Ticket Number</p>
-            <div className={`text-[80px] leading-none font-black ${status.status === 'serving' ? 'text-success' : 'text-primary'} block w-full`}>
-              {status.queue_number}
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left w-full">
-            <div className="bg-surface p-4 rounded-[var(--radius-card)] flex items-center w-full">
-              <div className="w-10 h-10 rounded-full bg-warning/10 text-warning flex items-center justify-center mr-3 shrink-0">
-                <MdGroups size={20} />
+        <div className="flex items-center gap-2 text-slate-400 text-sm font-bold bg-slate-100 px-4 py-2 rounded-xl self-start">
+          <FiRefreshCw className="animate-spin-slow" /> Live Update
+        </div>
+      </div>
+
+      {/* PERSONAL ACTIVE TICKET SECTION */}
+      {myStatus && (
+        <div className="mb-12 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="bg-amber-500 rounded-[2.5rem] p-1 shadow-2xl shadow-amber-200">
+            <div className="bg-white rounded-[2.4rem] p-8 md:p-10 flex flex-col md:flex-row items-center gap-10">
+              {/* Left: Ticket Large */}
+              <div className="flex flex-col items-center justify-center p-8 bg-slate-50 rounded-[2rem] border-2 border-dashed border-amber-300 w-full md:w-auto min-w-[240px]">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-2">Your Ticket</p>
+                <h2 className="text-7xl font-black text-slate-900 tracking-tighter">{myStatus.queue_number}</h2>
+                <div className="mt-4 flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest">
+                  {myStatus.queue_type} Priority
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-xs text-muted font-medium mb-1 block w-full whitespace-nowrap">People Ahead</p>
-                <p className="font-bold text-secondary text-xl block w-full">{status.position - 1}</p>
+
+              {/* Right: Info */}
+              <div className="flex-1 w-full">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl">
+                    <FiCheckCircle />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900">{myStatus.service_name}</h3>
+                    <p className="text-slate-500 font-medium text-sm">{myStatus.department}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                    <div className="flex items-center gap-3 text-amber-600 mb-1">
+                      <FiUsers size={20} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">People Ahead</span>
+                    </div>
+                    <p className="text-2xl font-black text-slate-900">{myStatus.position - 1}</p>
+                  </div>
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                    <div className="flex items-center gap-3 text-blue-600 mb-1">
+                      <FiClock size={20} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Wait Time</span>
+                    </div>
+                    <p className="text-2xl font-black text-slate-900">~{myStatus.estimated_wait_time}m</p>
+                  </div>
+                </div>
+                
+                {myStatus.status === 'serving' && (
+                  <div className="mt-6 p-4 bg-emerald-500 text-white rounded-2xl font-black text-center animate-pulse tracking-widest uppercase text-sm">
+                    It's your turn! Go to Counter {myStatus.counter_number || '1'}
+                  </div>
+                )}
               </div>
             </div>
-            <div className="bg-surface p-4 rounded-[var(--radius-card)] flex items-center w-full">
-              <div className="w-10 h-10 rounded-full bg-accent/10 text-accent flex items-center justify-center mr-3 shrink-0">
-                <MdOutlineAccessTimeFilled size={20} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-muted font-medium mb-1 block w-full whitespace-nowrap">Est. Wait Time</p>
-                <p className="font-bold text-secondary text-xl block w-full">~{status.estimated_wait_time} min</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="mt-8 text-sm text-muted flex items-center justify-center w-full">
-            <MdRefresh className="mr-1 animate-spin" /> <span className="block w-full">Auto-updating every 10 seconds</span>
           </div>
         </div>
       )}
+
+      {/* ALL QUEUES SUMMARY GRID */}
+      <div className="mb-8">
+        <h2 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
+          <FiUsers className="text-amber-500" /> All Department Queues
+        </h2>
+        {summary.length === 0 ? (
+          <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2.5rem] p-12 text-center">
+            <FiInfo className="mx-auto text-slate-300 mb-4" size={40} />
+            <p className="text-slate-500 font-bold">No active queues found.</p>
+            <p className="text-slate-400 text-sm mt-1">Departments will appear here as they are registered.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {summary.map((office, idx) => {
+              const Icon = officeIcons[office.department] || FiUsers;
+              return (
+                <div 
+                  key={idx}
+                  onClick={() => setSelectedOffice(selectedOffice === office.department ? null : office.department)}
+                  className={`group bg-white rounded-3xl p-6 border-2 transition-all duration-300 cursor-pointer relative overflow-hidden ${
+                    selectedOffice === office.department 
+                    ? 'border-amber-500 shadow-xl shadow-amber-100 ring-4 ring-amber-50' 
+                    : 'border-slate-100 hover:border-amber-200 hover:shadow-lg'
+                  }`}
+                >
+                  {/* Background Decor */}
+                  <div className="absolute -right-4 -bottom-4 text-slate-50 opacity-10 group-hover:scale-125 transition-transform duration-500">
+                    <Icon size={120} />
+                  </div>
+
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl ${
+                        selectedOffice === office.department ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        <Icon />
+                      </div>
+                      <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-50 text-slate-500 rounded-full text-[9px] font-black uppercase tracking-widest">
+                        <div className={`w-1.5 h-1.5 rounded-full ${office.current_serving ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></div>
+                        {office.current_serving ? 'Live' : 'Inactive'}
+                      </div>
+                    </div>
+
+                    <h3 className="font-bold text-slate-900 mb-1 leading-tight">{office.department}</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-6">Arba Minch Municipality</p>
+
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Now Serving</p>
+                        <p className={`text-3xl font-black tracking-tighter ${office.current_serving ? 'text-amber-500' : 'text-slate-300'}`}>
+                          {office.current_serving || '---'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">In Queue</p>
+                        <p className="text-xl font-black text-slate-900">{office.waiting_count}</p>
+                      </div>
+                    </div>
+
+                    {/* Expandable Detail */}
+                    {selectedOffice === office.department && (
+                      <div className="mt-6 pt-6 border-t border-slate-100 animate-in fade-in zoom-in-95 duration-300">
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-slate-500 font-medium">Estimated wait:</span>
+                            <span className="text-slate-900 font-black">{office.waiting_count * 10} mins</span>
+                          </div>
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-slate-500 font-medium">Counter Status:</span>
+                            <span className="text-emerald-600 font-black">Active</span>
+                          </div>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            className="w-full mt-4 py-3 bg-slate-900 text-white rounded-xl font-bold text-[11px] uppercase tracking-[0.2em] hover:bg-amber-500 transition-colors"
+                          >
+                            Join This Queue
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

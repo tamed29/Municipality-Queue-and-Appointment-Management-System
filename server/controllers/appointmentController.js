@@ -20,7 +20,7 @@ export const getMyAppointments = async (req, res) => {
   const user_id = req.user.id;
   try {
     const result = await query(`
-      SELECT a.*, s.name as service_name 
+      SELECT a.*, s.name as service_name, s.department, s.duration_minutes 
       FROM appointments a 
       JOIN services s ON a.service_id = s.id 
       WHERE a.user_id = $1 

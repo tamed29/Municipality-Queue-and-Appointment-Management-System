@@ -75,3 +75,22 @@ export const getMyQueueStatus = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+export const getQueueSummary = async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT 
+        s.department,
+        (SELECT queue_number FROM queue q2 JOIN services s2 ON q2.service_id = s2.id 
+         WHERE s2.department = s.department AND q2.status = 'serving' 
+         ORDER BY q2.updated_at DESC LIMIT 1) as current_serving,
+        (SELECT COUNT(*) FROM queue q3 JOIN services s3 ON q3.service_id = s3.id 
+         WHERE s3.department = s.department AND q3.status = 'waiting') as waiting_count
+      FROM services s
+      GROUP BY s.department
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};

@@ -130,7 +130,7 @@ export const skipQueue = async (req, res) => {
 export const getAppointments = async (req, res) => {
   try {
     const result = await query(`
-      SELECT a.*, u.full_name, u.phone, s.name as service_name 
+      SELECT a.*, u.full_name, u.phone, s.name as service_name, s.department 
       FROM appointments a 
       JOIN users u ON a.user_id = u.id 
       JOIN services s ON a.service_id = s.id 

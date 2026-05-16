@@ -64,7 +64,10 @@ const ManageAppointments = () => {
                       <div className="font-medium text-secondary">{appt.full_name}</div>
                       <div className="text-xs text-muted">{appt.phone}</div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-secondary font-medium">{appt.service_name}</td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-secondary font-bold">{appt.service_name}</div>
+                      <div className="text-[10px] text-muted uppercase font-black tracking-widest mt-0.5">{appt.department}</div>
+                    </td>
                     <td className="px-6 py-4 text-sm text-secondary">
                       <div>{new Date(appt.appointment_date).toLocaleDateString()}</div>
                       <div className="text-xs font-medium text-primary mt-0.5">{appt.time_slot}</div>
