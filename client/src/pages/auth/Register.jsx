@@ -12,12 +12,13 @@ const Register = () => {
     phone: '',
     email: '',
     age: '',
+    subCity: 'Secha Sub-City',
     password: '',
     confirmPassword: ''
   });
   const [loading, setLoading] = useState(false);
   
-  const { login } = useContext(AuthContext);
+  const { login, registerLocal } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const isElderly = parseInt(formData.age) >= 60;
@@ -33,19 +34,17 @@ const Register = () => {
     }
     
     setLoading(true);
-    try {
-      const { confirmPassword, ...dataToSend } = formData;
-      dataToSend.age = parseInt(dataToSend.age, 10);
-      
-      const res = await api.post('/auth/register', dataToSend);
-      login(res.data);
-      toast.success('Registration successful');
-      navigate('/dashboard');
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Registration failed');
-    } finally {
-      setLoading(false);
-    }
+    setTimeout(() => {
+      try {
+        registerLocal(formData);
+        toast.success('Registration successful');
+        navigate('/dashboard');
+      } catch (error) {
+        toast.error('Registration failed');
+      } finally {
+        setLoading(false);
+      }
+    }, 600);
   };
 
   return (
@@ -94,6 +93,20 @@ const Register = () => {
               <p>As you are 60+, you will receive priority service automatically.</p>
             </div>
           )}
+
+          <div>
+            <label className="block text-sm font-medium text-secondary mb-1">Sub-City / Place of Residence</label>
+            <select 
+              name="subCity" required value={formData.subCity || 'Secha Sub-City'} onChange={handleChange}
+              className="w-full px-4 py-2 border border-border rounded-[var(--radius-input)] bg-white text-secondary focus:outline-none focus:ring-2 focus:ring-primary/50"
+            >
+              <option value="Secha Sub-City">Secha Sub-City</option>
+              <option value="Sikela Sub-City">Sikela Sub-City</option>
+              <option value="Nech Sar Sub-City">Nech Sar Sub-City</option>
+              <option value="Kulfo Sub-City">Kulfo Sub-City</option>
+              <option value="Abaya Sub-City">Abaya Sub-City</option>
+            </select>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-secondary mb-1">Phone Number</label>

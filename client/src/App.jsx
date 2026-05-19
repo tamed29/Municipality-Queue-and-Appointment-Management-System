@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Layouts
 import CitizenLayout from './layouts/CitizenLayout';
-import AdminLayout from './layouts/AdminLayout';
 
 // Auth
 import LandingPage from './pages/LandingPage';
@@ -16,13 +15,19 @@ import BookAppointment from './pages/citizen/BookAppointment';
 import MyAppointments from './pages/citizen/MyAppointments';
 import QueueStatus from './pages/citizen/QueueStatus';
 import Feedback from './pages/citizen/Feedback';
+import Notifications from './pages/citizen/Notifications';
 
-// Admin
-import AdminDashboard from './pages/admin/AdminDashboard';
-import ManageUsers from './pages/admin/ManageUsers';
-import ManageServices from './pages/admin/ManageServices';
-import QueueControl from './pages/admin/QueueControl';
-import ManageAppointments from './pages/admin/ManageAppointments';
+// Admin Redesigned
+import AdminLogin from './admin/AdminLogin';
+import ProtectedAdminRoute from './admin/components/ProtectedAdminRoute';
+import AdminDashboard from './admin/AdminDashboard';
+import Overview from './admin/pages/Overview';
+import Appointments from './admin/pages/Appointments';
+import QueueManagement from './admin/pages/QueueManagement';
+import Services from './admin/pages/Services';
+import Citizens from './admin/pages/Citizens';
+import Reports from './admin/pages/Reports';
+import Settings from './admin/pages/Settings';
 
 function App() {
   return (
@@ -36,17 +41,28 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/book-appointment" element={<BookAppointment />} />
         <Route path="/my-appointments" element={<MyAppointments />} />
+        <Route path="/dashboard/appointments" element={<MyAppointments />} />
         <Route path="/queue-status" element={<QueueStatus />} />
         <Route path="/feedback" element={<Feedback />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/dashboard/notifications" element={<Notifications />} />
       </Route>
 
-      {/* Admin Routes */}
-      <Route element={<AdminLayout />}>
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/admin/users" element={<ManageUsers />} />
-        <Route path="/admin/services" element={<ManageServices />} />
-        <Route path="/admin/queue" element={<QueueControl />} />
-        <Route path="/admin/appointments" element={<ManageAppointments />} />
+      {/* Admin Login Route */}
+      <Route path="/admin/login" element={<AdminLogin />} />
+
+      {/* Protected Administrative Dashboard Routes */}
+      <Route element={<ProtectedAdminRoute />}>
+        <Route element={<AdminDashboard />}>
+          <Route path="/admin/dashboard" element={<Overview />} />
+          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="/admin/appointments" element={<Appointments />} />
+          <Route path="/admin/queue" element={<QueueManagement />} />
+          <Route path="/admin/services" element={<Services />} />
+          <Route path="/admin/citizens" element={<Citizens />} />
+          <Route path="/admin/reports" element={<Reports />} />
+          <Route path="/admin/settings" element={<Settings />} />
+        </Route>
       </Route>
       
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -55,3 +71,4 @@ function App() {
 }
 
 export default App;
+

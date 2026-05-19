@@ -8,6 +8,13 @@ import {
   FiArrowRight, FiArrowLeft, FiCheckCircle, FiClock, FiSun, FiPrinter, FiPlus, FiClipboard, FiChevronDown, FiChevronUp
 } from 'react-icons/fi';
 import { serviceRequirements } from '../../data/serviceRequirements';
+import { 
+  getStoredAppointments, 
+  saveStoredAppointments, 
+  createNotification, 
+  generateTicketId, 
+  assignQueueNumber 
+} from '../../store/appointmentStore';
 
 const WhatToBring = ({ serviceId }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -110,8 +117,12 @@ const offices = [
 const BookAppointment = () => {
   const { user } = useContext(AuthContext);
   const [currentStep, setCurrentStep] = useState(1);
-  const [allServices, setAllServices] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [allServices] = useState(() => 
+    Object.entries(officeServices).flatMap(([dept, svcs]) => 
+      svcs.map(s => ({ ...s, department: dept }))
+    )
+  );
+  const [loading, setLoading] = useState(false);
   const [selectedOffice, setSelectedOffice] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
   const [selectedDate, setSelectedDate] = useState('');
@@ -122,23 +133,9 @@ const BookAppointment = () => {
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchServices = async () => {
-      try {
-        const res = await api.get('/services');
-        setAllServices(res.data);
-      } catch (error) {
-        toast.error('Failed to load services');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchServices();
-  }, []);
-
   const filteredServices = allServices.filter(s => s.department === selectedOffice);
 
-  const isPriority = user?.age >= 60;
+  const isPriority = user?.priorityType ? user.priorityType !== 'regular' : (user?.age >= 60);
 
   const handleNext = () => {
     if (currentStep === 1 && !selectedOffice) return toast.error('Please select an office');
@@ -152,48 +149,75 @@ const BookAppointment = () => {
   const handleBack = () => setCurrentStep(currentStep - 1);
 
   const generateTicket = async () => {
-    setSubmitting(true);
-    try {
-      // Find the database ID for the selected service name
-      const dbService = allServices.find(s => s.name === selectedService.name);
-      
-      if (!dbService) {
-        toast.error('Service not synced with database. Please re-seed.');
-        setSubmitting(false);
-        return;
-      }
-
-      // Save to backend
-      const res = await api.post('/appointments', {
-        service_id: dbService.id,
-        appointment_date: selectedDate,
-        time_slot: selectedSession === 'morning' ? 'Morning' : 'Afternoon'
-      });
-
-      const officeCode = {
-        "Civil Registration Office": "CR",
-        "Residence & Population Office": "RP",
-        "Business & Trade Office": "BT",
-        "Land & Property Office": "LP",
-        "Tax & Finance Office": "TF",
-        "Construction & Urban Planning Office": "CU",
-        "Public Services Office": "PS",
-      }[selectedOffice] || "GS";
-
-      const number = String(Math.floor(Math.random() * 900) + 100);
-      const queueNumber = `${officeCode}-${number}`;
-      const bookingRef = `AM-${res.data.id || Date.now().toString().slice(-8)}`;
-      const issuedAt = new Date().toLocaleString();
-
-      setTicketData({ queueNumber, bookingRef, issuedAt });
-      setTicketGenerated(true);
-      toast.success('Appointment confirmed!');
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to confirm appointment');
-    } finally {
-      setSubmitting(false);
+    if (!user) {
+      toast.error('You must be logged in to book an appointment');
+      return;
     }
+    setSubmitting(true);
+    
+    // Simulate booking process delay
+    setTimeout(() => {
+      try {
+        const priorityType = user.priorityType || (user.age >= 60 ? 'elderly' : 'regular');
+        const requestedTimeSlot = selectedSession === 'morning' ? '09:30 AM' : '02:30 PM';
+        
+        // 1. Generate unique ticket ID: [DEPT_CODE]-[YEAR]-[4-digit-sequence]
+        const ticketId = generateTicketId(selectedOffice, selectedDate);
+        
+        // 2. Auto-assign queue number: Priority -> P-001, P-002; Regular -> 001, 002
+        const queueNumber = assignQueueNumber(selectedOffice, selectedDate, priorityType);
+        
+        const bookingRef = `AM-${ticketId}`;
+        const issuedAt = new Date().toLocaleString();
+
+        const newAppointment = {
+          id: ticketId,
+          citizenId: user.id,
+          citizenName: user.name,
+          citizenPhone: user.phone || '0912345678',
+          citizenAge: user.age,
+          priorityType,
+          department: selectedOffice,
+          service: selectedService.name,
+          requestedDate: selectedDate,
+          requestedTimeSlot,
+          status: 'pending',
+          queueNumber,
+          adminNote: '',
+          subCity: user.subCity || 'Secha Sub-City',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          notificationSeen: false
+        };
+
+        // 3. Save to localStorage under 'mqams_appointments'
+        const currentApps = getStoredAppointments();
+        saveStoredAppointments([...currentApps, newAppointment]);
+
+        // 4. Create notification for citizen
+        createNotification(
+          user.id,
+          'booking_confirmed',
+          'Appointment Submitted',
+          `Your appointment ${ticketId} for ${selectedService.name} on ${selectedDate} at ${requestedTimeSlot} has been submitted and is awaiting approval.`
+        );
+
+        setTicketData({ queueNumber, bookingRef, issuedAt });
+        setTicketGenerated(true);
+        toast.success('Appointment submitted successfully!');
+        
+        // Redirect after a short delay
+        setTimeout(() => {
+          navigate('/my-appointments');
+        }, 1500);
+
+      } catch (error) {
+        console.error(error);
+        toast.error('Failed to submit appointment');
+      } finally {
+        setSubmitting(false);
+      }
+    }, 800);
   };
 
   const resetBooking = () => {

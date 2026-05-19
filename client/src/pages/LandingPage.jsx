@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { FiCalendar, FiClock, FiUsers, FiShield, FiArrowRight, FiCheckCircle, FiBell, FiFileText, FiMenu, FiX } from 'react-icons/fi';
 
 export default function LandingPage() {
@@ -67,7 +67,6 @@ export default function LandingPage() {
           <div className="hidden md:flex items-center gap-2">
             <a href="#services" onClick={(e) => handleScrollTo(e, 'services')} className="text-slate-400 hover:text-white text-sm px-3 py-1.5 rounded-md hover:bg-slate-800 transition-colors cursor-pointer block whitespace-nowrap">Services</a>
             <a href="#how-it-works" onClick={(e) => handleScrollTo(e, 'how-it-works')} className="text-slate-400 hover:text-white text-sm px-3 py-1.5 rounded-md hover:bg-slate-800 transition-colors cursor-pointer block whitespace-nowrap">How it works</a>
-            <a href="#about" onClick={(e) => handleScrollTo(e, 'about')} className="text-slate-400 hover:text-white text-sm px-3 py-1.5 rounded-md hover:bg-slate-800 transition-colors cursor-pointer block whitespace-nowrap">About</a>
             
             <div className="w-px h-5 bg-slate-700 mx-2"></div>
             
@@ -92,7 +91,6 @@ export default function LandingPage() {
             <div className="flex flex-col gap-4">
               <a href="#services" onClick={(e) => handleScrollTo(e, 'services')} className="text-slate-300 text-lg font-medium">Services</a>
               <a href="#how-it-works" onClick={(e) => handleScrollTo(e, 'how-it-works')} className="text-slate-300 text-lg font-medium">How it works</a>
-              <a href="#about" onClick={(e) => handleScrollTo(e, 'about')} className="text-slate-300 text-lg font-medium">About</a>
             </div>
             <div className="flex flex-col gap-3 pt-4 border-t border-slate-800">
               <button 
@@ -112,8 +110,8 @@ export default function LandingPage() {
         )}
       </nav>
 
-      {/* SECTION 2: HERO (Full viewport height minus navbar) */}
-      <section className="bg-slate-900 px-6 overflow-hidden relative flex items-center min-h-[calc(100vh-4rem)] py-12 lg:py-0">
+      {/* SECTION 2: HERO (Full viewport height) */}
+      <section className="bg-slate-900 px-6 overflow-hidden relative flex items-center min-h-screen py-12 lg:py-0 pt-16">
 
         <div className="max-w-6xl mx-auto w-full relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-8 items-center">
@@ -170,11 +168,6 @@ export default function LandingPage() {
                 <div className="flex flex-col">
                   <strong className="text-3xl font-extrabold text-white tracking-tight">24/7</strong>
                   <span className="text-[11px] text-slate-400 mt-1 font-bold uppercase tracking-wider block whitespace-nowrap">Online</span>
-                </div>
-                <div className="w-px h-10 bg-slate-700 hidden sm:block"></div>
-                <div className="flex flex-col">
-                  <strong className="text-3xl font-extrabold text-emerald-400 tracking-tight">P-001</strong>
-                  <span className="text-[11px] text-emerald-500/80 mt-1 font-bold uppercase tracking-wider block whitespace-nowrap">Priority</span>
                 </div>
               </div>
             </div>
@@ -584,6 +577,7 @@ export default function LandingPage() {
             <div className="flex gap-6">
               <a className="text-slate-500 text-sm hover:text-white transition-colors cursor-pointer">Privacy Policy</a>
               <a className="text-slate-500 text-sm hover:text-white transition-colors cursor-pointer">Terms of Service</a>
+              <Link to="/admin/login" className="text-slate-900/20 text-[9px] hover:text-slate-400 transition-colors cursor-pointer self-center">Admin Portal</Link>
             </div>
           </div>
         </div>

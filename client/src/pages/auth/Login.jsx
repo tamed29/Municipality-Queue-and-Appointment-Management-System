@@ -16,21 +16,37 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    try {
-      const res = await api.post('/auth/login', { identifier, password });
-      login(res.data);
-      toast.success('Logged in successfully');
-      
-      if (res.data.role === 'admin') {
-        navigate('/admin/dashboard');
-      } else {
-        navigate('/dashboard');
+    
+    // Simulate lookup delay
+    setTimeout(() => {
+      try {
+        const registered = JSON.parse(localStorage.getItem('mqams_registered_users') || '[]');
+        const found = registered.find(
+          u => (u.email === identifier || u.phone === identifier) && u.password === password
+        );
+        
+        if (found) {
+          const { password, ...userData } = found;
+          login(userData);
+          toast.success('Logged in successfully');
+          navigate('/dashboard');
+        } else {
+          // Check hardcoded credentials for Admin if they login here too
+          if (identifier === 'admin@mqams.arba-minch.gov.et' && password === 'MQAMS@Admin2025#') {
+            sessionStorage.setItem('mqams_admin_session', 'true');
+            sessionStorage.setItem('mqams_admin_email', identifier);
+            toast.success('System Administrator Authenticated!');
+            navigate('/admin/dashboard');
+          } else {
+            toast.error('Invalid credentials');
+          }
+        }
+      } catch (err) {
+        toast.error('Failed to log in');
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
+    }, 600);
   };
 
   return (
