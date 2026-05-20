@@ -23,7 +23,14 @@ const Login = () => {
       const userData = { id: _id, name: full_name, ...rest };
       login(userData, token);
       toast.success('Logged in successfully');
-      navigate('/dashboard');
+      
+      if (userData.role === 'admin') {
+        sessionStorage.setItem('mqams_admin_session', 'true');
+        sessionStorage.setItem('mqams_admin_email', identifier);
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       if (identifier === 'admin@gmail.com' && password === 'admin') {
         sessionStorage.setItem('mqams_admin_session', 'true');

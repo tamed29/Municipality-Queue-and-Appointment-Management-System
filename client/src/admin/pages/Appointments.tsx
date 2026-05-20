@@ -20,9 +20,9 @@ const Appointments: React.FC = () => {
   // Filters logic
   const filteredAppointments = appointments.filter(app => {
     const matchesSearch = 
-      app.citizenName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      app.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      app.nationalId.toLowerCase().includes(searchTerm.toLowerCase());
+      (app.citizenName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (app.id || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (app.nationalId || '').toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesDept = selectedDept === 'All' || app.department === selectedDept;
     

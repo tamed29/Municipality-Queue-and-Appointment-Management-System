@@ -230,6 +230,20 @@ export const resetDatabase = async (req, res) => {
       );
     `);
     console.log("Services seeded successfully.");
+
+    // Seed Admin User
+    const bcrypt = await import('bcrypt');
+    const salt = await bcrypt.genSalt(10);
+    const password_hash = await bcrypt.hash('admin', salt);
+    await query(`
+      INSERT INTO users (full_name, national_id, phone, email, age, password_hash, role)
+      SELECT 'System Administrator', 'ADMIN-001', '0000000000', 'admin@gmail.com', 40, $1, 'admin'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM users WHERE email = 'admin@gmail.com'
+      );
+    `, [password_hash]);
+    console.log("Admin user seeded successfully.");
+
     res.json({ message: 'Database wiped and seeded successfully. You can now start from zero.' });
   } catch (error) {
     console.error("Failed to reset DB:", error);
