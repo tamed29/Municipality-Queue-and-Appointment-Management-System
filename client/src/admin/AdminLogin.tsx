@@ -4,35 +4,46 @@ import { ADMIN_CREDENTIALS, ADMIN_SESSION_KEY } from '../constants/adminAuth';
 import { FiMail, FiLock, FiEye, FiEyeOff, FiAlertTriangle, FiCalendar, FiShield } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
+import api from '../../api/axios';
+import { useAuth } from '../../store/AuthContext';
+
 const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    // Simulate database lookup latency
-    setTimeout(() => {
-      if (
-        email.trim().toLowerCase() === ADMIN_CREDENTIALS.email.toLowerCase() &&
-        password === ADMIN_CREDENTIALS.password
-      ) {
-        sessionStorage.setItem(ADMIN_SESSION_KEY, 'true');
-        sessionStorage.setItem('mqams_admin_email', email);
-        toast.success('System Administrator Authenticated!');
-        navigate('/admin/dashboard');
-      } else {
-        setError('Invalid admin credentials');
-        toast.error('Invalid admin credentials');
+    try {
+      const res = await api.post('/auth/login', { identifier: email, password });
+      const { token, _id, full_name, ...rest } = res.data;
+      
+      if (rest.role !== 'admin') {
+        throw new Error("Unauthorized: Not an admin account");
       }
+
+      const userData = { id: _id, name: full_name, ...rest };
+      login(userData, token);
+      
+      sessionStorage.setItem(ADMIN_SESSION_KEY, 'true');
+      sessionStorage.setItem('mqams_admin_email', email);
+      toast.success('System Administrator Authenticated!');
+      navigate('/admin/dashboard');
+    } catch (err: any) {
+      console.error(err);
+      const msg = err.response?.data?.message || err.message || 'Invalid admin credentials';
+      setError(msg);
+      toast.error(msg);
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
   return (
