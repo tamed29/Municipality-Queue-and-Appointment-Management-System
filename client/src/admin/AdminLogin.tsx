@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ADMIN_CREDENTIALS, ADMIN_SESSION_KEY } from '../constants/adminAuth';
 import { FiMail, FiLock, FiEye, FiEyeOff, FiAlertTriangle, FiCalendar, FiShield } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
 import api from '../api/axios';
-import { useAuth } from '../store/AuthContext';
+import { AuthContext } from '../store/AuthContext';
 
 const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login } = useContext(AuthContext);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
