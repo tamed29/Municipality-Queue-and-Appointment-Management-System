@@ -1,11 +1,13 @@
 import React, { createContext, useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
+import api from '../../api/axios';
 
 // ----------------------------------------------------
 // SHARED TYPES & STORAGE HELPERS
 // ----------------------------------------------------
 export interface Appointment {
   id: string; // Ticket number, e.g. CIV-2026-0001
+  dbId?: number; // Database primary key
   citizenId: string;
   citizenName: string;
   nationalId: string;
@@ -214,6 +216,7 @@ const mapStorageToAdmin = (app: any): Appointment => {
 
   return {
     id: app.id,
+    dbId: app.dbId,
     citizenId: app.citizenId,
     citizenName: app.citizenName,
     nationalId: app.nationalId || 'AM-10000-00',
@@ -242,6 +245,7 @@ const mapAdminToStorage = (app: Appointment): any => {
 
   return {
     id: app.id,
+    dbId: app.dbId,
     citizenId: app.citizenId,
     citizenName: app.citizenName,
     citizenPhone: '0912345678',
@@ -338,11 +342,114 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // ----------------------------------------------------
   // REAL-TIME SYNC CORE (READS FROM LOCALSTORAGE)
   // ----------------------------------------------------
-  const syncFromLocalStorage = () => {
+  const getDeptCodeForDeptName = (dept: string): string => {
+    const map: Record<string, string> = {
+      "Civil Registration Office": "CIV",
+      "Civil Reg": "CIV",
+      "Residence & Population Office": "RES",
+      "Residence": "RES",
+      "Business & Trade Office": "BUS",
+      "Business": "BUS",
+      "Land & Property Office": "LND",
+      "Land": "LND",
+      "Tax & Finance Office": "TAX",
+      "Tax": "TAX",
+      "Construction & Urban Planning Office": "CON",
+      "Construction": "CON",
+      "Public Services Office": "PUB",
+      "Public": "PUB"
+    };
+    return map[dept] || "CIV";
+  };
+
+  // ----------------------------------------------------
+  // REAL-TIME SYNC CORE (READS FROM LOCALSTORAGE + DB)
+  // ----------------------------------------------------
+  const syncFromLocalStorage = async () => {
     try {
+      // 1. Fetch appointments from database
+      let dbApps: any[] = [];
+      try {
+        const res = await api.get('/admin/appointments');
+        if (res && res.data) {
+          dbApps = res.data;
+        }
+      } catch (err) {
+        console.error('Failed to fetch appointments from server db:', err);
+      }
+
+      // 2. Load local list
       const rawApps = localStorage.getItem('mqams_appointments');
-      const parsedApps = rawApps ? JSON.parse(rawApps) : [];
-      const adminApps = parsedApps.map(mapStorageToAdmin);
+      const localApps = rawApps ? JSON.parse(rawApps) : [];
+
+      // 3. Merge db apps into local list
+      const mergedApps = [...localApps];
+      dbApps.forEach((dbApp: any) => {
+        const deptCode = getDeptCodeForDeptName(dbApp.department);
+        const ticketId = `${deptCode}-${new Date(dbApp.appointment_date).getFullYear() || 2026}-${String(dbApp.id).padStart(4, '0')}`;
+        
+        const existingIndex = mergedApps.findIndex(
+          (a: any) => a.id === ticketId || String(a.dbId) === String(dbApp.id) || String(a.id) === String(dbApp.id)
+        );
+
+        const statusMap: Record<string, string> = {
+          'pending': 'pending',
+          'approved': 'approved',
+          'rejected': 'rejected',
+          'called': 'called',
+          'completed': 'completed',
+          'no-show': 'no-show',
+          'cancelled': 'rejected'
+        };
+        const storageStatus = statusMap[dbApp.status.toLowerCase()] || 'pending';
+
+        const storageApp = {
+          id: ticketId,
+          dbId: dbApp.id,
+          citizenId: String(dbApp.user_id),
+          citizenName: dbApp.full_name || 'Citizen',
+          citizenPhone: dbApp.phone || '0912345678',
+          citizenAge: 35,
+          priorityType: 'regular',
+          department: dbApp.department,
+          departmentCode: deptCode,
+          service: dbApp.service_name,
+          requestedDate: dbApp.appointment_date ? dbApp.appointment_date.split('T')[0] : new Date().toISOString().split('T')[0],
+          requestedTimeSlot: dbApp.time_slot,
+          status: storageStatus,
+          queueNumber: dbApp.queue_number || '001',
+          adminNote: dbApp.admin_note || '',
+          statusHistory: [
+            {
+              status: storageStatus,
+              timestamp: dbApp.created_at || new Date().toISOString(),
+              by: 'system'
+            }
+          ],
+          createdAt: dbApp.created_at || new Date().toISOString(),
+          updatedAt: dbApp.created_at || new Date().toISOString()
+        };
+
+        if (existingIndex !== -1) {
+          mergedApps[existingIndex] = {
+            ...mergedApps[existingIndex],
+            dbId: dbApp.id,
+            status: storageStatus,
+            requestedDate: dbApp.appointment_date ? dbApp.appointment_date.split('T')[0] : mergedApps[existingIndex].requestedDate,
+            requestedTimeSlot: dbApp.time_slot || mergedApps[existingIndex].requestedTimeSlot,
+            adminNote: dbApp.admin_note || mergedApps[existingIndex].adminNote || ''
+          };
+        } else {
+          mergedApps.push(storageApp);
+        }
+      });
+
+      // Update local storage
+      if (JSON.stringify(mergedApps) !== rawApps) {
+        localStorage.setItem('mqams_appointments', JSON.stringify(mergedApps));
+      }
+
+      const adminApps = mergedApps.map(mapStorageToAdmin);
       
       // Prevent infinite rerendering loops by comparing state string
       if (JSON.stringify(adminApps) !== JSON.stringify(appointments)) {
@@ -508,62 +615,106 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // ----------------------------------------------------
   // ADMIN INTERACTION ACTIONS (STEP 7)
   // ----------------------------------------------------
-  const approveAppointment = (id: string) => {
-    const updated = appointments.map(app => {
-      if (app.id === id) {
+  const approveAppointment = async (id: string) => {
+    const app = appointments.find(a => a.id === id);
+    if (!app) return;
+
+    const targetId = app.dbId || id;
+    try {
+      await api.put(`/admin/appointments/${targetId}/status`, { status: 'approved' });
+    } catch (err) {
+      console.error("Failed to update status on server:", err);
+    }
+
+    const updated = appointments.map(a => {
+      if (a.id === id) {
         dispatchCitizenNotification(
-          app.citizenId,
+          a.citizenId,
           'appointment_approved',
           'Appointment Approved',
-          `Your appointment ${app.id} for ${app.serviceName} has been approved. Please arrive 10m early and bring your required documents.`,
-          app.id
+          `Your appointment ${a.id} for ${a.serviceName} has been approved. Please arrive 10m early and bring your required documents.`,
+          a.id
         );
-        return { ...app, status: 'Approved' as const };
+        return { ...a, status: 'Approved' as const };
       }
-      return app;
+      return a;
     });
     commitAppointmentsToStorage(updated);
-    toast.success(`Appointment ${id} approved! Notification dispatched.`);
+    toast.success(`Appointment ${id} approved!`);
   };
 
-  const rejectAppointment = (id: string) => {
+  const rejectAppointment = async (id: string) => {
+    const app = appointments.find(a => a.id === id);
+    if (!app) return;
+
     const reason = window.prompt("Enter rejection reason:") || "Incomplete documentation or scheduling conflicts.";
-    const updated = appointments.map(app => {
-      if (app.id === id) {
+    const targetId = app.dbId || id;
+    try {
+      await api.put(`/admin/appointments/${targetId}/status`, { status: 'rejected' });
+    } catch (err) {
+      console.error("Failed to update status on server:", err);
+    }
+
+    const updated = appointments.map(a => {
+      if (a.id === id) {
         dispatchCitizenNotification(
-          app.citizenId,
+          a.citizenId,
           'appointment_rejected',
           'Appointment Rejected',
-          `Your appointment ${app.id} was rejected. Reason: ${reason}. You may modify your options and rebook.`,
-          app.id
+          `Your appointment ${a.id} was rejected. Reason: ${reason}. You may modify your options and rebook.`,
+          a.id
         );
-        return { ...app, status: 'Rejected' as const, notes: reason };
+        return { ...a, status: 'Rejected' as const, notes: reason };
       }
-      return app;
+      return a;
     });
     commitAppointmentsToStorage(updated);
     toast.error(`Appointment ${id} rejected.`);
   };
 
-  const rescheduleAppointment = (id: string, date: string, timeSlot: string, note?: string) => {
-    const updated = appointments.map(app => {
-      if (app.id === id) {
+  const rescheduleAppointment = async (id: string, date: string, timeSlot: string, note?: string) => {
+    const app = appointments.find(a => a.id === id);
+    if (!app) return;
+
+    const targetId = app.dbId || id;
+    try {
+      await api.put(`/admin/appointments/${targetId}/status`, { 
+        status: 'approved',
+        appointment_date: date,
+        time_slot: timeSlot
+      });
+    } catch (err) {
+      console.error("Failed to reschedule on server:", err);
+    }
+
+    const updated = appointments.map(a => {
+      if (a.id === id) {
         dispatchCitizenNotification(
-          app.citizenId,
+          a.citizenId,
           'appointment_rescheduled',
           'Appointment Rescheduled',
-          `Your appointment ${app.id} has been rescheduled to ${date} at ${timeSlot}.`,
-          app.id
+          `Your appointment ${a.id} has been rescheduled to ${date} at ${timeSlot}.`,
+          a.id
         );
-        return { ...app, date, timeSlot, notes: note || app.notes, status: 'Approved' as const };
+        return { ...a, date, timeSlot, notes: note || a.notes, status: 'Approved' as const };
       }
-      return app;
+      return a;
     });
     commitAppointmentsToStorage(updated);
-    toast.success(`Rescheduled: ${id} to ${date} at ${timeSlot}! Notification dispatched.`);
+    toast.success(`Rescheduled: ${id} to ${date} at ${timeSlot}!`);
   };
 
-  const approveAllPending = () => {
+  const approveAllPending = async () => {
+    const pendings = appointments.filter(a => a.status === 'Pending');
+    for (const app of pendings) {
+      const targetId = app.dbId || app.id;
+      try {
+        await api.put(`/admin/appointments/${targetId}/status`, { status: 'approved' });
+      } catch (err) {
+        console.error("Failed to update status on server:", err);
+      }
+    }
+
     const updated = appointments.map(app => {
       if (app.status === 'Pending') {
         dispatchCitizenNotification(

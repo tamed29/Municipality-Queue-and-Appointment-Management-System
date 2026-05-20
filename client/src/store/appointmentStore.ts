@@ -1,10 +1,13 @@
 // Core store using localStorage + storage events
+import api from '../api/axios';
+
 export const APPOINTMENTS_KEY = 'mqams_appointments';
 export const NOTIFICATIONS_KEY = 'mqams_notifications';
 export const USERS_KEY = 'mqams_users';
 
 export interface Appointment {
   id: string                  // "CIV-2025-0001"
+  dbId?: number               // Database primary key
   citizenId: string           // owner's user ID only
   citizenName: string
   citizenPhone: string
@@ -307,4 +310,84 @@ export const generateTicketId = (dept: string, date: string): string => {
   
   const seq = deptAppsInYear.length + 1;
   return `${deptCode}-${year}-${String(seq).padStart(4, '0')}`;
+};
+
+export const syncCitizenAppointments = async (citizenId: string): Promise<void> => {
+  try {
+    const res = await api.get('/appointments/my');
+    if (!res || !res.data) return;
+    const dbApps = res.data;
+
+    const raw = localStorage.getItem(APPOINTMENTS_KEY);
+    const localApps: Appointment[] = raw ? JSON.parse(raw) : [];
+    const mergedApps = [...localApps];
+
+    dbApps.forEach((dbApp: any) => {
+      const deptCode = getDeptCode(dbApp.department);
+      const ticketId = `${deptCode}-${new Date(dbApp.appointment_date).getFullYear() || 2026}-${String(dbApp.id).padStart(4, '0')}`;
+      
+      const existingIndex = mergedApps.findIndex(
+        (a: any) => a.id === ticketId || String(a.dbId) === String(dbApp.id) || String(a.id) === String(dbApp.id)
+      );
+
+      const statusMap: Record<string, string> = {
+        'pending': 'pending',
+        'approved': 'approved',
+        'rejected': 'rejected',
+        'called': 'called',
+        'completed': 'completed',
+        'no-show': 'no-show',
+        'cancelled': 'rejected'
+      };
+      const storageStatus = statusMap[dbApp.status.toLowerCase()] || 'pending';
+
+      const storageApp: Appointment = {
+        id: ticketId,
+        dbId: dbApp.id,
+        citizenId: String(dbApp.user_id),
+        citizenName: dbApp.full_name || 'Citizen',
+        citizenPhone: dbApp.phone || '0912345678',
+        citizenAge: 35,
+        priorityType: 'regular',
+        department: dbApp.department,
+        departmentCode: deptCode,
+        service: dbApp.service_name,
+        requestedDate: dbApp.appointment_date ? dbApp.appointment_date.split('T')[0] : new Date().toISOString().split('T')[0],
+        requestedTimeSlot: dbApp.time_slot,
+        status: storageStatus as any,
+        queueNumber: dbApp.queue_number || '001',
+        adminNote: dbApp.admin_note || '',
+        statusHistory: [
+          {
+            status: storageStatus,
+            timestamp: dbApp.created_at || new Date().toISOString(),
+            by: 'system'
+          }
+        ],
+        createdAt: dbApp.created_at || new Date().toISOString(),
+        updatedAt: dbApp.created_at || new Date().toISOString()
+      };
+
+      if (existingIndex !== -1) {
+        mergedApps[existingIndex] = {
+          ...mergedApps[existingIndex],
+          dbId: dbApp.id,
+          status: storageStatus as any,
+          requestedDate: dbApp.appointment_date ? dbApp.appointment_date.split('T')[0] : mergedApps[existingIndex].requestedDate,
+          requestedTimeSlot: dbApp.time_slot || mergedApps[existingIndex].requestedTimeSlot,
+          adminNote: dbApp.admin_note || mergedApps[existingIndex].adminNote || ''
+        };
+      } else {
+        mergedApps.push(storageApp);
+      }
+    });
+
+    if (JSON.stringify(mergedApps) !== raw) {
+      localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(mergedApps));
+      window.dispatchEvent(new Event('storage'));
+      notifyAll();
+    }
+  } catch (err) {
+    console.error("Error syncing citizen appointments from db:", err);
+  }
 };

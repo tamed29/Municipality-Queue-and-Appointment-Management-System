@@ -411,77 +411,93 @@ const BookAppointment = () => {
     }
 
     setSubmitting(true);
-    
-    // Simulate booking process delay
-    setTimeout(() => {
+    try {
+      const priorityType = user.priorityType || (user.age >= 60 ? 'elderly' : 'regular');
+      const requestedTimeSlot = selectedSession === 'morning' ? '09:30 AM' : '02:30 PM';
+
+      // 1. Fetch active services to map name to db id
+      let service_id = 1;
       try {
-        const priorityType = user.priorityType || (user.age >= 60 ? 'elderly' : 'regular');
-        const requestedTimeSlot = selectedSession === 'morning' ? '09:30 AM' : '02:30 PM';
-        
-        // 1. Generate unique ticket ID: [DEPT_CODE]-[YEAR]-[4-digit-sequence]
-        const ticketId = generateTicketId(selectedOffice, selectedDate);
-        
-        // 2. Auto-assign queue number: Priority -> P-001, P-002; Regular -> 001, 002
-        const queueNumber = assignQueueNumber(selectedOffice, selectedDate, priorityType);
-        
-        const bookingRef = `AM-${ticketId}`;
-        const issuedAt = new Date().toLocaleString();
-
-        const newAppointment = {
-          id: ticketId,
-          citizenId: user.id,
-          citizenName: user.name,
-          citizenPhone: user.phone || '0912345678',
-          citizenAge: user.age,
-          priorityType,
-          department: selectedOffice,
-          departmentCode: getDeptCode(selectedOffice),
-          service: selectedService.name,
-          requestedDate: selectedDate,
-          requestedTimeSlot,
-          status: 'pending',
-          queueNumber,
-          adminNote: '',
-          subCity: user.subCity || 'Secha Sub-City',
-          statusHistory: [
-            {
-              status: 'pending',
-              timestamp: new Date().toISOString(),
-              by: 'citizen'
-            }
-          ],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-
-        // 3. Save to localStorage under 'mqams_appointments'
-        saveAppointment(newAppointment);
-
-        // 4. Create notification for citizen
-        createNotification(
-          user.id,
-          'booking_confirmed',
-          'Appointment Submitted',
-          `Your appointment ${ticketId} for ${selectedService.name} on ${selectedDate} at ${requestedTimeSlot} has been submitted and is awaiting approval.`,
-          ticketId
+        const servicesRes = await api.get('/services');
+        const dbService = (servicesRes.data || []).find(
+          s => s.name.toLowerCase() === selectedService.name.toLowerCase()
         );
-
-        setTicketData({ queueNumber, bookingRef, issuedAt });
-        setTicketGenerated(true);
-        toast.success('Appointment submitted successfully!');
-        
-        // Redirect after a short delay
-        setTimeout(() => {
-          navigate('/my-appointments');
-        }, 1500);
-
-      } catch (error) {
-        console.error(error);
-        toast.error('Failed to submit appointment');
-      } finally {
-        setSubmitting(false);
+        if (dbService) {
+          service_id = dbService.id;
+        }
+      } catch (err) {
+        console.error("Failed to map service name to database ID, using fallback id=1", err);
       }
-    }, 800);
+
+      // 2. Insert appointment record on backend
+      const response = await api.post('/appointments', {
+        service_id,
+        appointment_date: selectedDate,
+        time_slot: requestedTimeSlot
+      });
+      const dbApt = response.data;
+
+      // 3. Format ticket ID using backend-returned database id
+      const dbIdStr = dbApt ? String(dbApt.id) : String(Date.now());
+      const ticketId = `${deptCode}-${new Date(selectedDate).getFullYear() || 2026}-${dbIdStr.padStart(4, '0')}`;
+      const queueNumber = assignQueueNumber(selectedOffice, selectedDate, priorityType);
+      const bookingRef = `AM-${ticketId}`;
+      const issuedAt = new Date().toLocaleString();
+
+      const newAppointment = {
+        id: ticketId,
+        dbId: dbApt ? dbApt.id : undefined,
+        citizenId: String(user.id),
+        citizenName: user.name,
+        citizenPhone: user.phone || '0912345678',
+        citizenAge: user.age,
+        priorityType,
+        department: selectedOffice,
+        departmentCode: deptCode,
+        service: selectedService.name,
+        requestedDate: selectedDate,
+        requestedTimeSlot,
+        status: 'pending',
+        queueNumber,
+        adminNote: '',
+        subCity: user.subCity || 'Secha Sub-City',
+        statusHistory: [
+          {
+            status: 'pending',
+            timestamp: new Date().toISOString(),
+            by: 'citizen'
+          }
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // 4. Save to local storage for instant tab updates
+      saveAppointment(newAppointment);
+
+      // 5. Create notifications for the user
+      createNotification(
+        user.id,
+        'booking_confirmed',
+        'Appointment Submitted',
+        `Your appointment ${ticketId} for ${selectedService.name} on ${selectedDate} at ${requestedTimeSlot} has been submitted and is awaiting approval.`,
+        ticketId
+      );
+
+      setTicketData({ queueNumber, bookingRef, issuedAt });
+      setTicketGenerated(true);
+      toast.success('Appointment submitted successfully!');
+      
+      setTimeout(() => {
+        navigate('/my-appointments');
+      }, 1500);
+
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to submit appointment to server database');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const resetBooking = () => {

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../../store/AuthContext';
-import { getStoredAppointments, saveStoredAppointments, subscribeToStore, getMyAppointments } from '../../store/appointmentStore';
+import { getStoredAppointments, saveStoredAppointments, subscribeToStore, getMyAppointments, syncCitizenAppointments } from '../../store/appointmentStore';
+import api from '../../api/axios';
 import { serviceRequirements } from '../../data/serviceRequirements';
 import { toast } from 'react-hot-toast';
 import { 
@@ -79,17 +80,42 @@ const MyAppointments = () => {
 
   useEffect(() => {
     if (!user) return;
+    
+    // Sync from database immediately
+    syncCitizenAppointments(user.id);
+
     const updateAppointments = () => {
       setAppointments(getMyAppointments(user.id));
     };
     updateAppointments();
-    return subscribeToStore(updateAppointments);
+
+    // Poll database for updates every 3 seconds
+    const interval = setInterval(() => {
+      syncCitizenAppointments(user.id);
+    }, 3000);
+
+    const unsubscribe = subscribeToStore(updateAppointments);
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [user]);
 
-  const handleCancel = (id) => {
+  const handleCancel = async (id) => {
     if (!window.confirm('Are you sure you want to cancel this appointment?')) return;
     
     const allApps = getStoredAppointments();
+    const appToCancel = allApps.find(app => app.id === id);
+    if (appToCancel) {
+      const targetId = appToCancel.dbId || id;
+      try {
+        await api.delete(`/appointments/${targetId}`);
+      } catch (err) {
+        console.error("Failed to cancel appointment on backend:", err);
+      }
+    }
+
     const updated = allApps.map(app => {
       if (app.id === id) {
         return { 

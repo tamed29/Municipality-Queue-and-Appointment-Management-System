@@ -145,9 +145,17 @@ export const getAppointments = async (req, res) => {
 
 export const updateAppointmentStatus = async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, appointment_date, time_slot } = req.body;
   try {
-    const result = await query('UPDATE appointments SET status = $1 WHERE id = $2 RETURNING *', [status, id]);
+    let result;
+    if (appointment_date && time_slot) {
+      result = await query(
+        'UPDATE appointments SET status = $1, appointment_date = $2, time_slot = $3 WHERE id = $4 RETURNING *',
+        [status, appointment_date, time_slot, id]
+      );
+    } else {
+      result = await query('UPDATE appointments SET status = $1 WHERE id = $2 RETURNING *', [status, id]);
+    }
     res.json(result.rows[0]);
   } catch (error) {
     console.error(error);
