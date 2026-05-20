@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../../store/AuthContext';
-import { getStoredAppointments, saveStoredAppointments } from '../../store/appointmentStore';
+import { getStoredAppointments, saveStoredAppointments, subscribeToStore, getMyAppointments } from '../../store/appointmentStore';
 import { serviceRequirements } from '../../data/serviceRequirements';
 import { toast } from 'react-hot-toast';
 import { 
@@ -77,29 +77,14 @@ const MyAppointments = () => {
   const [filter, setFilter] = useState('all');
   const [expandedApp, setExpandedApp] = useState(null);
 
-  // Read appointments from localstorage matching user id
-  const syncAppointments = () => {
+  useEffect(() => {
     if (!user) return;
-    const allApps = getStoredAppointments();
-    const myApps = allApps.filter(app => app.citizenId === user.id);
-    
-    // Simple state checking to avoid infinite renders
-    if (JSON.stringify(myApps) !== JSON.stringify(appointments)) {
-      setAppointments(myApps);
-    }
-  };
-
-  useEffect(() => {
-    syncAppointments();
+    const updateAppointments = () => {
+      setAppointments(getMyAppointments(user.id));
+    };
+    updateAppointments();
+    return subscribeToStore(updateAppointments);
   }, [user]);
-
-  // STEP 8: Real-time Polling Sync (Every 3 seconds)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      syncAppointments();
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [appointments, user]);
 
   const handleCancel = (id) => {
     if (!window.confirm('Are you sure you want to cancel this appointment?')) return;
@@ -119,7 +104,6 @@ const MyAppointments = () => {
 
     saveStoredAppointments(updated);
     toast.success('Appointment cancelled successfully');
-    syncAppointments();
   };
 
   const getStatusStyle = (status) => {

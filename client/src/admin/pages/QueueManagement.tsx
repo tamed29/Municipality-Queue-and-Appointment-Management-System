@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import QueueBoard from '../components/QueueBoard';
-import { FiUsers, FiTag, FiFolder } from 'react-icons/fi';
+import { FiUsers, FiTag, FiFolder, FiAlertOctagon } from 'react-icons/fi';
+import { getBlockedDateInfo } from '../../store/blockedDatesStore';
 
 const QueueManagement: React.FC = () => {
   const departments = [
@@ -15,8 +16,42 @@ const QueueManagement: React.FC = () => {
 
   const [activeDept, setActiveDept] = useState('Civil Reg');
 
+  const getDeptCode = (dept: string) => {
+    switch (dept) {
+      case 'Civil Reg': return 'CIV';
+      case 'Residence': return 'RES';
+      case 'Business': return 'BUS';
+      case 'Land': return 'LND';
+      case 'Tax': return 'TAX';
+      case 'Construction': return 'CON';
+      case 'Public': return 'PUB';
+      default: return 'ALL';
+    }
+  };
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const deptCode = getDeptCode(activeDept);
+  const blockedInfo = getBlockedDateInfo(todayStr, deptCode);
+
   return (
     <div className="space-y-6 md:space-y-8 font-sans">
+      
+      {blockedInfo && (
+        <div className="bg-rose-50 border border-rose-200 rounded-3xl p-5 shadow-sm flex items-start gap-4 animate-in fade-in duration-300">
+          <div className="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-600 flex items-center justify-center text-xl shrink-0">
+            🚫
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-extrabold text-sm text-rose-950 uppercase tracking-wider">🚫 Office Closed / Queue Offline Today</h3>
+            <p className="text-xs text-rose-800 font-semibold mt-1">
+              Today (<span className="font-bold">{todayStr}</span>) is marked as a blocked date: <span className="font-bold underline">{blockedInfo.title}</span> ({blockedInfo.type.replace('_', ' ').toUpperCase()}) for the {activeDept} department.
+            </p>
+            <p className="text-[11px] text-rose-600 font-bold mt-1.5 italic">
+              Citizens are prevented from making new appointments or generating queue tickets for this department online today. Active counter calls should resume on the next operational workday.
+            </p>
+          </div>
+        </div>
+      )}
       
       {/* Department Tabs Bar Card */}
       <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-sm space-y-4 shrink-0">

@@ -2,25 +2,22 @@ import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MdNotifications as IconNotifications, MdMenu as IconMenu } from 'react-icons/md';
 import { AuthContext } from '../store/AuthContext';
-import { getStoredNotifications } from '../store/appointmentStore';
+import { subscribeToStore, getMyUnreadCount } from '../store/appointmentStore';
 
 const Navbar = ({ onMenuClick }) => {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const syncUnreadCount = () => {
-    if (!user) return;
-    const allNotifs = getStoredNotifications();
-    const myUnread = allNotifs.filter(n => n.citizenId === user.id && n.status === 'unread');
-    setUnreadCount(myUnread.length);
-  };
-
   useEffect(() => {
-    syncUnreadCount();
-    const interval = setInterval(syncUnreadCount, 3000);
-    return () => clearInterval(interval);
+    if (!user) return;
+    const updateCount = () => {
+      setUnreadCount(getMyUnreadCount(user.id));
+    };
+    updateCount();
+    return subscribeToStore(updateCount);
   }, [user]);
+
 
   const userName = user?.name || user?.full_name || 'Citizen';
 

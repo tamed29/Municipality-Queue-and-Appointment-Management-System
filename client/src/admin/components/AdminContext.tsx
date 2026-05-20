@@ -122,23 +122,35 @@ const DEPARTMENTS = [
 // Helper to create Notifications inside localStorage
 const dispatchCitizenNotification = (
   citizenId: string,
-  type: 'booking_confirmed' | 'appointment_approved' | 'appointment_rejected' | 'queue_called' | 'appointment_rescheduled',
+  type: 'booking_confirmed' | 'appointment_approved' | 'appointment_rejected' | 'queue_called' | 'appointment_rescheduled' | 'submitted' | 'approved' | 'rejected' | 'called' | 'rescheduled' | 'completed',
   title: string,
-  message: string
+  message: string,
+  appointmentId: string = ''
 ) => {
   try {
     const raw = localStorage.getItem('mqams_notifications');
     const list = raw ? JSON.parse(raw) : [];
+
+    let normalizedType: any = type;
+    if (type === 'appointment_approved') normalizedType = 'approved';
+    else if (type === 'appointment_rejected') normalizedType = 'rejected';
+    else if (type === 'queue_called') normalizedType = 'called';
+    else if (type === 'appointment_rescheduled') normalizedType = 'rescheduled';
+
     const newNotif = {
       id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       citizenId,
-      type,
+      appointmentId,
+      type: normalizedType,
       title,
       message,
+      isRead: false,
+      isDismissed: false,
       status: 'unread',
       createdAt: new Date().toISOString()
     };
     localStorage.setItem('mqams_notifications', JSON.stringify([newNotif, ...list]));
+    window.dispatchEvent(new Event('storage'));
   } catch (e) {
     console.error('Failed to dispatch alert notification', e);
   }
@@ -412,9 +424,16 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  // Perform immediate first sync
+  // Perform immediate first sync and register storage listener
   useEffect(() => {
     syncFromLocalStorage();
+    const handleStorageChange = () => {
+      syncFromLocalStorage();
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   // STEP 8: Live sync frequency of 3 seconds checking for modifications
@@ -483,6 +502,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setAppointments(updatedList);
     const storageList = updatedList.map(mapAdminToStorage);
     localStorage.setItem('mqams_appointments', JSON.stringify(storageList));
+    window.dispatchEvent(new Event('storage'));
   };
 
   // ----------------------------------------------------
@@ -495,7 +515,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           app.citizenId,
           'appointment_approved',
           'Appointment Approved',
-          `Your appointment ${app.id} for ${app.serviceName} has been approved. Please arrive 10m early and bring your required documents.`
+          `Your appointment ${app.id} for ${app.serviceName} has been approved. Please arrive 10m early and bring your required documents.`,
+          app.id
         );
         return { ...app, status: 'Approved' as const };
       }
@@ -513,7 +534,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           app.citizenId,
           'appointment_rejected',
           'Appointment Rejected',
-          `Your appointment ${app.id} was rejected. Reason: ${reason}. You may modify your options and rebook.`
+          `Your appointment ${app.id} was rejected. Reason: ${reason}. You may modify your options and rebook.`,
+          app.id
         );
         return { ...app, status: 'Rejected' as const, notes: reason };
       }
@@ -530,7 +552,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           app.citizenId,
           'appointment_rescheduled',
           'Appointment Rescheduled',
-          `Your appointment ${app.id} has been rescheduled to ${date} at ${timeSlot}.`
+          `Your appointment ${app.id} has been rescheduled to ${date} at ${timeSlot}.`,
+          app.id
         );
         return { ...app, date, timeSlot, notes: note || app.notes, status: 'Approved' as const };
       }
@@ -547,7 +570,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           app.citizenId,
           'appointment_approved',
           'Appointment Approved',
-          `Your appointment ${app.id} for ${app.serviceName} has been approved during mass clearance.`
+          `Your appointment ${app.id} for ${app.serviceName} has been approved during mass clearance.`,
+          app.id
         );
         return { ...app, status: 'Approved' as const };
       }
@@ -673,7 +697,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           app.citizenId,
           'queue_called',
           '🔔 You Are Being Called NOW!',
-          `Queue ${appTicket} for ${app.serviceName} — Please proceed to ${deptName} counter immediately.`
+          `Queue ${appTicket} for ${app.serviceName} — Please proceed to ${deptName} counter immediately.`,
+          app.id
         );
         return { ...app, status: 'Called' as const };
       }

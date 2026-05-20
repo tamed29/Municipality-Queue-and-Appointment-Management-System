@@ -4,6 +4,7 @@ import { FiCheck, FiX, FiCalendar, FiEye, FiDownload, FiChevronUp, FiChevronDown
 import ReactDatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { toast } from 'react-hot-toast';
+import { getBlockedDateInfo } from '../../store/blockedDatesStore';
 
 interface AppointmentTableProps {
   appointments: Appointment[];
@@ -122,6 +123,19 @@ const AppointmentTable: React.FC<AppointmentTableProps> = ({ appointments, onVie
     const dateString = newDate.toISOString().split('T')[0];
     rescheduleAppointment(rescheduleItem.id, dateString, newTime, rescheduleNote);
     setRescheduleItem(null);
+  };
+
+  const getDeptCode = (dept: string) => {
+    switch (dept) {
+      case 'Civil Reg': return 'CIV';
+      case 'Residence': return 'RES';
+      case 'Business': return 'BUS';
+      case 'Land': return 'LND';
+      case 'Tax': return 'TAX';
+      case 'Construction': return 'CON';
+      case 'Public': return 'PUB';
+      default: return 'ALL';
+    }
   };
 
   // Masking National ID helper
@@ -407,6 +421,29 @@ const AppointmentTable: React.FC<AppointmentTableProps> = ({ appointments, onVie
                   <FiCalendar className="absolute top-1/2 right-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
               </div>
+
+              {(() => {
+                const formattedNewDate = newDate ? newDate.toISOString().split('T')[0] : '';
+                const deptCode = getDeptCode(rescheduleItem.department);
+                const blockedInfo = getBlockedDateInfo(formattedNewDate, deptCode);
+                return blockedInfo ? (
+                  <div className="p-4 bg-amber-500/10 border-l-4 border-amber-500 rounded-r-2xl flex gap-3 text-xs text-amber-950 font-medium font-sans">
+                    <FiAlertCircle className="text-amber-600 text-lg shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-extrabold uppercase tracking-wide text-amber-700">⚠️ Rescheduling Warning</p>
+                      <p className="mt-1 leading-relaxed">
+                        This date (<span className="font-bold">{formattedNewDate}</span>) is marked as closed for <span className="font-bold">{rescheduleItem.department}</span>.
+                      </p>
+                      <p className="mt-0.5 text-amber-800 font-semibold">
+                        Reason: <span className="font-extrabold text-amber-900">{blockedInfo.title}</span> ({blockedInfo.type.replace('_', ' ').toUpperCase()})
+                      </p>
+                      <p className="mt-1.5 text-[10px] text-amber-700 font-bold italic animate-pulse">
+                        ⚠️ Saving will bypass this block. Are you sure you want to proceed?
+                      </p>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
 
               {/* Time slot picker */}
               <div className="space-y-2">

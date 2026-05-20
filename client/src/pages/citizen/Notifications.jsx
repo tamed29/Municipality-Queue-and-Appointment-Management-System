@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../../store/AuthContext';
-import { getStoredNotifications, saveStoredNotifications } from '../../store/appointmentStore';
+import { getStoredNotifications, saveStoredNotifications, subscribeToStore, getMyNotifications, markNotificationRead } from '../../store/appointmentStore';
 import { FiBell, FiCheck, FiCheckSquare, FiCalendar, FiFileText, FiAlertCircle } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
@@ -8,48 +8,26 @@ const Notifications = () => {
   const { user } = useContext(AuthContext);
   const [notifications, setNotifications] = useState([]);
 
-  const syncNotifications = () => {
-    if (!user) return;
-    const allNotifs = getStoredNotifications();
-    const myNotifs = allNotifs.filter(n => n.citizenId === user.id);
-    
-    if (JSON.stringify(myNotifs) !== JSON.stringify(notifications)) {
-      setNotifications(myNotifs);
-    }
-  };
-
   useEffect(() => {
-    syncNotifications();
+    if (!user) return;
+    const updateNotifications = () => {
+      setNotifications(getMyNotifications(user.id));
+    };
+    updateNotifications();
+    return subscribeToStore(updateNotifications);
   }, [user]);
 
-  // Real-time polling every 3 seconds
-  useEffect(() => {
-    const interval = setInterval(syncNotifications, 3000);
-    return () => clearInterval(interval);
-  }, [notifications, user]);
-
   const handleMarkAsRead = (id) => {
-    const allNotifs = getStoredNotifications();
-    const updated = allNotifs.map(n => {
-      if (n.id === id) {
-        return { ...n, status: 'read' };
-      }
-      return n;
-    });
-    saveStoredNotifications(updated);
-    syncNotifications();
+    markNotificationRead(id);
   };
 
   const handleMarkAllAsRead = () => {
-    const allNotifs = getStoredNotifications();
-    const updated = allNotifs.map(n => {
-      if (n.citizenId === user?.id) {
-        return { ...n, status: 'read' };
+    const myNotifs = getMyNotifications(user?.id);
+    myNotifs.forEach(n => {
+      if (!n.isRead && n.status !== 'read') {
+        markNotificationRead(n.id);
       }
-      return n;
     });
-    saveStoredNotifications(updated);
-    syncNotifications();
     toast.success('All notifications marked as read');
   };
 
@@ -82,7 +60,7 @@ const Notifications = () => {
           <p className="text-slate-500 font-medium mt-1">Stay updated with status calls and administration feedback.</p>
         </div>
 
-        {notifications.some(n => n.status === 'unread') && (
+        {notifications.some(n => n.status === 'unread' || (!n.isRead && n.status !== 'read')) && (
           <button 
             onClick={handleMarkAllAsRead}
             className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs uppercase tracking-wider border border-slate-200 px-4 py-2.5 rounded-xl transition-all shadow-sm shrink-0"
@@ -96,7 +74,7 @@ const Notifications = () => {
       <div className="space-y-3">
         {notifications.length > 0 ? (
           notifications.map(notif => {
-            const isUnread = notif.status === 'unread';
+            const isUnread = notif.status === 'unread' || (!notif.isRead && notif.status !== 'read');
             return (
               <div 
                 key={notif.id}

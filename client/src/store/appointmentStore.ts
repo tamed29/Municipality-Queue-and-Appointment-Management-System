@@ -1,39 +1,114 @@
+// Core store using localStorage + storage events
+export const APPOINTMENTS_KEY = 'mqams_appointments';
+export const NOTIFICATIONS_KEY = 'mqams_notifications';
+export const USERS_KEY = 'mqams_users';
+
 export interface Appointment {
-  id: string                    // e.g. "CIV-2026-0001"
-  citizenId: string             // logged-in user ID
+  id: string                  // "CIV-2025-0001"
+  citizenId: string           // owner's user ID only
   citizenName: string
   citizenPhone: string
   citizenAge: number
   priorityType: 'elderly' | 'disabled' | 'pregnant' | 'regular'
   department: string
+  departmentCode: string      // CIV, RES, BUS, LND, TAX, CON, PUB
   service: string
-  requestedDate: string         // "2026-05-20"
-  requestedTimeSlot: string     // "09:30 AM"
-  status: 'pending' | 'approved' | 'rejected' | 'called' | 'completed' | 'no-show'
-  queueNumber: string           // "CIV-007" or "P-001"
+  requestedDate: string
+  requestedTimeSlot: string
+  status: 'pending' | 'approved' | 'rejected' | 
+          'called' | 'completed' | 'no-show'
+  queueNumber: string
   adminNote: string
+  statusHistory: {
+    status: string
+    timestamp: string
+    by: string
+  }[]
   createdAt: string
   updatedAt: string
-  notificationSeen: boolean
 }
 
-export interface CitizenNotification {
+export interface Notification {
   id: string
-  citizenId: string
-  type: 'booking_confirmed' | 'appointment_approved' | 'appointment_rejected' | 'queue_called' | 'appointment_rescheduled'
+  citizenId: string           // CRITICAL: filter by this
+  appointmentId: string
+  type: 'submitted' | 'approved' | 'rejected' | 
+        'called' | 'rescheduled' | 'completed' | 'booking_confirmed'
   title: string
   message: string
-  status: 'unread' | 'read'
+  isRead: boolean
+  isDismissed: boolean        // for top banner
   createdAt: string
+  status?: 'unread' | 'read'  // For backward compatibility
+}
+
+export interface CitizenUser {
+  id: string                  // "citizen_[timestamp]"
+  name: string
+  nationalId: string
+  phone: string
+  age: number
+  priorityType: string
 }
 
 // ----------------------------------------------------
-// LOCALSTORAGE CORE ACCESSORS
+// DUAL SYNC & REGISTRY SYSTEM
 // ----------------------------------------------------
 
-export const getStoredAppointments = (): Appointment[] => {
+// Allow components to subscribe to storage changes
+type Listener = () => void;
+const listeners = new Set<Listener>();
+
+export const subscribeToStore = (listener: Listener) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+};
+
+const notifyAll = () => {
+  listeners.forEach(l => {
+    try {
+      l();
+    } catch (e) {
+      console.error('Error notifying listener', e);
+    }
+  });
+};
+
+// Listen for cross-tab changes
+window.addEventListener('storage', (e) => {
+  if (e.key === APPOINTMENTS_KEY || e.key === NOTIFICATIONS_KEY || e.key === USERS_KEY || e.key === 'mqams_registered_users') {
+    notifyAll();
+  }
+});
+
+// Also poll every 2 seconds for same-tab/fallback updates
+setInterval(() => {
+  notifyAll();
+}, 2000);
+
+// ----------------------------------------------------
+// STORE HELPER FUNCTIONS
+// ----------------------------------------------------
+
+// Always filter by citizenId — never leak other user data
+export const getMyAppointments = (citizenId: string): Appointment[] => {
+  return getAllAppointments().filter(app => app.citizenId === citizenId);
+};
+
+export const getMyNotifications = (citizenId: string): Notification[] => {
+  return getStoredNotifications().filter(notif => notif.citizenId === citizenId);
+};
+
+export const getMyUnreadCount = (citizenId: string): number => {
+  return getMyNotifications(citizenId).filter(notif => !notif.isRead && notif.status !== 'read').length;
+};
+
+// Admin gets everything
+export const getAllAppointments = (): Appointment[] => {
   try {
-    const raw = localStorage.getItem('mqams_appointments');
+    const raw = localStorage.getItem(APPOINTMENTS_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch (e) {
     console.error('Failed to parse appointments', e);
@@ -41,13 +116,9 @@ export const getStoredAppointments = (): Appointment[] => {
   }
 };
 
-export const saveStoredAppointments = (appointments: Appointment[]) => {
-  localStorage.setItem('mqams_appointments', JSON.stringify(appointments));
-};
-
-export const getStoredNotifications = (): CitizenNotification[] => {
+export const getStoredNotifications = (): Notification[] => {
   try {
-    const raw = localStorage.getItem('mqams_notifications');
+    const raw = localStorage.getItem(NOTIFICATIONS_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch (e) {
     console.error('Failed to parse notifications', e);
@@ -55,31 +126,127 @@ export const getStoredNotifications = (): CitizenNotification[] => {
   }
 };
 
-export const saveStoredNotifications = (notifications: CitizenNotification[]) => {
-  localStorage.setItem('mqams_notifications', JSON.stringify(notifications));
+export const getAppointmentsByDept = (dept: string): Appointment[] => {
+  return getAllAppointments().filter(app => app.department === dept);
+};
+
+export const getAppointmentsByStatus = (status: string): Appointment[] => {
+  return getAllAppointments().filter(app => app.status === status);
+};
+
+export const getTodaysAppointments = (): Appointment[] => {
+  const today = new Date().toISOString().split('T')[0];
+  return getAllAppointments().filter(app => app.requestedDate === today);
+};
+
+// Write functions — trigger storage event after every write
+export const saveAppointment = (apt: Appointment): void => {
+  const all = getAllAppointments();
+  const index = all.findIndex(a => a.id === apt.id);
+  if (index !== -1) {
+    all[index] = apt;
+  } else {
+    all.push(apt);
+  }
+  localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(all));
+  window.dispatchEvent(new Event('storage'));
+  notifyAll();
+};
+
+export const updateAppointmentStatus = (id: string, status: Appointment['status'], adminNote?: string): void => {
+  const all = getAllAppointments();
+  const apt = all.find(a => a.id === id);
+  if (apt) {
+    apt.status = status;
+    if (adminNote !== undefined) {
+      apt.adminNote = adminNote;
+    }
+    apt.updatedAt = new Date().toISOString();
+    if (!apt.statusHistory) {
+      apt.statusHistory = [];
+    }
+    apt.statusHistory.push({
+      status,
+      timestamp: new Date().toISOString(),
+      by: 'admin'
+    });
+    saveAppointment(apt);
+  }
+};
+
+export const saveNotification = (notif: Notification): void => {
+  const all = getStoredNotifications();
+  const index = all.findIndex(n => n.id === notif.id);
+  if (index !== -1) {
+    all[index] = notif;
+  } else {
+    all.unshift(notif);
+  }
+  localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(all));
+  window.dispatchEvent(new Event('storage'));
+  notifyAll();
+};
+
+export const markNotificationRead = (id: string): void => {
+  const all = getStoredNotifications();
+  const notif = all.find(n => n.id === id);
+  if (notif) {
+    notif.isRead = true;
+    notif.status = 'read';
+    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(all));
+    window.dispatchEvent(new Event('storage'));
+    notifyAll();
+  }
+};
+
+export const dismissBannerNotification = (id: string): void => {
+  const all = getStoredNotifications();
+  const notif = all.find(n => n.id === id);
+  if (notif) {
+    notif.isDismissed = true;
+    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(all));
+    window.dispatchEvent(new Event('storage'));
+    notifyAll();
+  }
 };
 
 // ----------------------------------------------------
-// TRANSACTION HELPERS & SEQUENCING
+// BACKWARD COMPATIBILITY & UTILITY HELPERS
 // ----------------------------------------------------
+export const getStoredAppointments = getAllAppointments;
+
+export const saveStoredAppointments = (appointments: Appointment[]) => {
+  localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(appointments));
+  window.dispatchEvent(new Event('storage'));
+  notifyAll();
+};
+
+export const saveStoredNotifications = (notifications: Notification[]) => {
+  localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
+  window.dispatchEvent(new Event('storage'));
+  notifyAll();
+};
 
 export const createNotification = (
   citizenId: string,
-  type: CitizenNotification['type'],
+  type: Notification['type'],
   title: string,
-  message: string
+  message: string,
+  appointmentId: string = ''
 ) => {
-  const newNotif: CitizenNotification = {
+  const newNotif: Notification = {
     id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
     citizenId,
+    appointmentId,
     type,
     title,
     message,
+    isRead: false,
+    isDismissed: false,
     status: 'unread',
     createdAt: new Date().toISOString()
   };
-  const current = getStoredNotifications();
-  saveStoredNotifications([newNotif, ...current]);
+  saveNotification(newNotif);
 };
 
 // Map department names to codes
@@ -117,12 +284,10 @@ export const assignQueueNumber = (
   const isPriority = priorityType !== 'regular';
   
   if (isPriority) {
-    // Count existing priority bookings for that dept on that date
     const priorityCount = sameDayApps.filter(app => app.priorityType !== 'regular').length;
     const num = priorityCount + 1;
     return `P-${String(num).padStart(3, '0')}`;
   } else {
-    // Count existing regular bookings
     const regularCount = sameDayApps.filter(app => app.priorityType === 'regular').length;
     const num = regularCount + 1;
     return String(num).padStart(3, '0');
@@ -135,7 +300,6 @@ export const generateTicketId = (dept: string, date: string): string => {
   const year = new Date(date).getFullYear() || 2026;
   const appointments = getStoredAppointments();
   
-  // Count how many appointments exist in this department in this year
   const deptAppsInYear = appointments.filter(app => {
     const appYear = new Date(app.requestedDate).getFullYear();
     return getDeptCode(app.department) === deptCode && appYear === year;

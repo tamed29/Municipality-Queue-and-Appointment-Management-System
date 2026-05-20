@@ -5,16 +5,18 @@ import { AuthContext } from '../../store/AuthContext';
 import { toast } from 'react-hot-toast';
 import { 
   FiCreditCard, FiHome, FiBriefcase, FiMap, FiDollarSign, FiTool, FiGlobe, 
-  FiArrowRight, FiArrowLeft, FiCheckCircle, FiClock, FiSun, FiPrinter, FiPlus, FiClipboard, FiChevronDown, FiChevronUp
+  FiArrowRight, FiArrowLeft, FiCheckCircle, FiClock, FiSun, FiPrinter, FiPlus, FiClipboard, FiChevronDown, FiChevronUp, FiCalendar
 } from 'react-icons/fi';
 import { serviceRequirements } from '../../data/serviceRequirements';
 import { 
   getStoredAppointments, 
-  saveStoredAppointments, 
+  saveAppointment, 
   createNotification, 
   generateTicketId, 
-  assignQueueNumber 
+  assignQueueNumber,
+  getDeptCode
 } from '../../store/appointmentStore';
+import { isDateBlocked, getBlockedDateInfo, getBlockedDates } from '../../store/blockedDatesStore';
 
 const WhatToBring = ({ serviceId }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -51,6 +53,251 @@ const WhatToBring = ({ serviceId }) => {
             ))}
           </ul>
         </div>
+      )}
+    </div>
+  );
+};
+
+const CustomCalendar = ({ selectedDate, onSelectDate, selectedOffice }) => {
+  const [currentYear, setCurrentYear] = useState(() => {
+    if (selectedDate) return new Date(selectedDate).getFullYear();
+    return new Date().getFullYear();
+  });
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    if (selectedDate) return new Date(selectedDate).getMonth();
+    return new Date().getMonth();
+  });
+
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const handleStorage = () => setTick(t => t + 1);
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  const handlePrevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(currentYear - 1);
+    } else {
+      setCurrentMonth(currentMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(currentYear + 1);
+    } else {
+      setCurrentMonth(currentMonth + 1);
+    }
+  };
+
+  // Generate calendar cells
+  const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay(); // 0 = Sun, 1 = Mon ...
+  const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const prevMonthDays = new Date(currentYear, currentMonth, 0).getDate();
+
+  const cells = [];
+  // Leading empty cells
+  for (let i = firstDayIndex - 1; i >= 0; i--) {
+    cells.push({
+      day: prevMonthDays - i,
+      isCurrentMonth: false,
+      dateStr: ''
+    });
+  }
+  // Current month cells
+  const todayStr = new Date().toISOString().split('T')[0];
+  const deptCode = getDeptCode(selectedOffice);
+  
+  for (let d = 1; d <= totalDays; d++) {
+    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const blockedInfo = getBlockedDateInfo(dateStr, deptCode);
+    cells.push({
+      day: d,
+      isCurrentMonth: true,
+      dateStr,
+      blockedInfo
+    });
+  }
+  // Trailing cells to fill 42 cells grid
+  const remaining = 42 - cells.length;
+  for (let d = 1; d <= remaining; d++) {
+    cells.push({
+      day: d,
+      isCurrentMonth: false,
+      dateStr: ''
+    });
+  }
+
+  return (
+    <div className="w-full bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4 font-sans">
+      {/* Header controls */}
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <button 
+          type="button"
+          onClick={handlePrevMonth}
+          className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-600 font-bold"
+        >
+          &larr;
+        </button>
+        <span className="font-extrabold text-sm text-slate-800 uppercase tracking-wider">
+          {monthNames[currentMonth]} {currentYear}
+        </span>
+        <button 
+          type="button"
+          onClick={handleNextMonth}
+          className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-600 font-bold"
+        >
+          &rarr;
+        </button>
+      </div>
+
+      {/* Weekday labels */}
+      <div className="grid grid-cols-7 gap-1 text-center">
+        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((wd, i) => (
+          <span key={i} className={`text-[10px] font-black uppercase tracking-wider ${wd === 'Su' ? 'text-rose-500' : 'text-slate-400'}`}>
+            {wd}
+          </span>
+        ))}
+      </div>
+
+      {/* Days grid */}
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((cell, idx) => {
+          if (!cell.isCurrentMonth) {
+            return (
+              <div 
+                key={`empty-${idx}`} 
+                className="h-9 flex items-center justify-center text-[11px] text-slate-350 font-medium select-none"
+              >
+                {cell.day}
+              </div>
+            );
+          }
+
+          const isToday = cell.dateStr === todayStr;
+          const isSelected = selectedDate === cell.dateStr;
+          const blocked = cell.blockedInfo;
+          const isBlocked = !!blocked;
+
+          // Compute tooltip text
+          let tooltip = '';
+          if (blocked) {
+            if (blocked.id === 'sunday') {
+              tooltip = '🚫 Closed — Sunday';
+            } else if (blocked.id === 'past_date') {
+              tooltip = '🚫 Past Date';
+            } else {
+              const label = blocked.type === 'holiday' ? 'Public Holiday' : 'Office Closure';
+              tooltip = `🚫 Closed — ${blocked.title} (${label})`;
+            }
+          } else if (isToday) {
+            tooltip = 'Today';
+          }
+
+          let style = "h-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all relative cursor-pointer ";
+          if (isBlocked) {
+            style += "bg-slate-50 text-slate-300 line-through cursor-not-allowed";
+          } else if (isSelected) {
+            style += "bg-amber-500 text-white shadow-md shadow-amber-200 scale-105";
+          } else {
+            style += "text-slate-700 hover:bg-slate-100 hover:text-slate-900";
+            if (isToday) {
+              style += " border border-amber-500/55 bg-amber-500/[0.04]";
+            }
+          }
+
+          return (
+            <div
+              key={cell.dateStr}
+              title={tooltip}
+              onClick={() => {
+                if (isBlocked) {
+                  toast.error(tooltip.replace('🚫 ', ''));
+                  return;
+                }
+                onSelectDate(cell.dateStr);
+              }}
+              className={style}
+            >
+              {cell.day}
+              {/* Dot indicator for active day */}
+              {!isBlocked && !isSelected && isToday && (
+                <span className="absolute bottom-1 w-1 h-1 bg-amber-500 rounded-full"></span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-4 pt-3 border-t border-slate-100 text-[10px] font-bold text-slate-400">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Available</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 bg-slate-200 rounded"></span> Blocked/Holiday</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full border border-amber-500"></span> Today</span>
+      </div>
+    </div>
+  );
+};
+
+const UpcomingClosuresNotice = () => {
+  const [showAll, setShowAll] = useState(false);
+  const [closures, setClosures] = useState([]);
+
+  useEffect(() => {
+    const fetchClosures = () => {
+      const all = getBlockedDates();
+      const todayStr = new Date().toISOString().split('T')[0];
+      const filtered = all.filter(item => 
+        item.date >= todayStr && 
+        (item.type === 'holiday' || item.type === 'office_closure')
+      ).sort((a, b) => a.date.localeCompare(b.date));
+      setClosures(filtered);
+    };
+
+    fetchClosures();
+    window.addEventListener('storage', fetchClosures);
+    return () => window.removeEventListener('storage', fetchClosures);
+  }, []);
+
+  if (closures.length === 0) return null;
+
+  const displayList = showAll ? closures : closures.slice(0, 5);
+
+  return (
+    <div className="mt-6 p-5 bg-amber-500/[0.04] border border-amber-500/15 rounded-3xl space-y-3 font-sans">
+      <div className="flex items-center gap-2">
+        <span className="text-base">📅</span>
+        <h4 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider">Upcoming Office Closures</h4>
+      </div>
+      <p className="text-[11px] text-slate-400 font-medium">Please plan your visit around these upcoming holiday/closure dates:</p>
+      
+      <div className="space-y-2">
+        {displayList.map(item => (
+          <div key={item.id} className="flex justify-between items-center text-xs bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-800 tabular-nums">{item.date}</span>
+              <span className="text-[10px] bg-red-50 text-red-600 border border-red-200/50 font-extrabold px-1.5 py-0.5 rounded uppercase">{item.title}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {closures.length > 5 && (
+        <button
+          type="button"
+          onClick={() => setShowAll(!showAll)}
+          className="text-[10px] text-amber-600 hover:text-amber-700 font-black uppercase tracking-wider block text-center w-full pt-1 cursor-pointer"
+        >
+          {showAll ? 'Show Less ▲' : `View All (${closures.length}) ▼`}
+        </button>
       )}
     </div>
   );
@@ -153,6 +400,16 @@ const BookAppointment = () => {
       toast.error('You must be logged in to book an appointment');
       return;
     }
+
+    // Strict block validation before generating ticket
+    const deptCode = getDeptCode(selectedOffice);
+    if (isDateBlocked(selectedDate, deptCode)) {
+      const blockedInfo = getBlockedDateInfo(selectedDate, deptCode);
+      const reason = blockedInfo ? blockedInfo.title : 'office holiday/closure';
+      toast.error(`❌ Cannot book appointment on ${selectedDate} because the office is closed (${reason}).`);
+      return;
+    }
+
     setSubmitting(true);
     
     // Simulate booking process delay
@@ -178,6 +435,7 @@ const BookAppointment = () => {
           citizenAge: user.age,
           priorityType,
           department: selectedOffice,
+          departmentCode: getDeptCode(selectedOffice),
           service: selectedService.name,
           requestedDate: selectedDate,
           requestedTimeSlot,
@@ -185,21 +443,27 @@ const BookAppointment = () => {
           queueNumber,
           adminNote: '',
           subCity: user.subCity || 'Secha Sub-City',
+          statusHistory: [
+            {
+              status: 'pending',
+              timestamp: new Date().toISOString(),
+              by: 'citizen'
+            }
+          ],
           createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          notificationSeen: false
+          updatedAt: new Date().toISOString()
         };
 
         // 3. Save to localStorage under 'mqams_appointments'
-        const currentApps = getStoredAppointments();
-        saveStoredAppointments([...currentApps, newAppointment]);
+        saveAppointment(newAppointment);
 
         // 4. Create notification for citizen
         createNotification(
           user.id,
           'booking_confirmed',
           'Appointment Submitted',
-          `Your appointment ${ticketId} for ${selectedService.name} on ${selectedDate} at ${requestedTimeSlot} has been submitted and is awaiting approval.`
+          `Your appointment ${ticketId} for ${selectedService.name} on ${selectedDate} at ${requestedTimeSlot} has been submitted and is awaiting approval.`,
+          ticketId
         );
 
         setTicketData({ queueNumber, bookingRef, issuedAt });
@@ -443,16 +707,18 @@ const BookAppointment = () => {
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
-              <div className="lg:col-span-2">
-                <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Select appointment date</label>
-                <input 
-                  type="date" 
-                  min={new Date().toISOString().split('T')[0]}
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-slate-900 font-bold focus:border-amber-500 focus:ring-0 focus:bg-white outline-none transition-all shadow-sm"
+              <div className="lg:col-span-2 space-y-4">
+                <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-1">Select appointment date</label>
+                <CustomCalendar 
+                  selectedDate={selectedDate} 
+                  onSelectDate={(d) => {
+                    setSelectedDate(d);
+                    setSelectedSession(null);
+                  }} 
+                  selectedOffice={selectedOffice} 
                 />
-                <div className="mt-6 p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                
+                <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 font-sans">
                   <div className="flex gap-3">
                     <FiClock className="text-blue-600 mt-1 shrink-0" />
                     <div>
@@ -461,56 +727,86 @@ const BookAppointment = () => {
                     </div>
                   </div>
                 </div>
+
+                <UpcomingClosuresNotice />
               </div>
 
               <div className="lg:col-span-3">
                 <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Work Session</label>
-                <div className="space-y-4">
-                  {/* Morning Card */}
-                  <div 
-                    onClick={() => setSelectedSession('morning')}
-                    className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-5 ${
-                      selectedSession === 'morning' 
-                      ? 'border-amber-500 bg-amber-50 shadow-lg shadow-amber-100' 
-                      : 'border-slate-100 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0 ${
-                      selectedSession === 'morning' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-500'
-                    }`}>
-                      <FiSun />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-bold text-slate-900">Morning Session</h3>
-                        <span className="bg-blue-50 text-blue-600 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">Recommended</span>
+                
+                {selectedDate && isDateBlocked(selectedDate, getDeptCode(selectedOffice)) ? (
+                  <div className="p-6 bg-rose-500/[0.04] border border-rose-500/15 rounded-3xl text-center space-y-3 font-sans animate-in fade-in duration-300">
+                    <p className="text-sm font-bold text-rose-700">🚫 No time slots available on this date</p>
+                    <p className="text-xs text-rose-600 font-semibold leading-relaxed">
+                      Reason: <span className="font-extrabold uppercase">{getBlockedDateInfo(selectedDate, getDeptCode(selectedOffice))?.type.replace('_', ' ')}</span> — {getBlockedDateInfo(selectedDate, getDeptCode(selectedOffice))?.title}
+                    </p>
+                    {getBlockedDateInfo(selectedDate, getDeptCode(selectedOffice))?.description && (
+                      <p className="text-[11px] text-slate-450 font-medium italic">
+                        "{getBlockedDateInfo(selectedDate, getDeptCode(selectedOffice))?.description}"
+                      </p>
+                    )}
+                    <p className="text-xs text-slate-500 font-bold pt-2">Please choose another date from the calendar grid.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Morning Card */}
+                    <div 
+                      onClick={() => {
+                        if (!selectedDate) {
+                          toast.error('Please select a date first');
+                          return;
+                        }
+                        setSelectedSession('morning');
+                      }}
+                      className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-5 ${
+                        selectedSession === 'morning' 
+                        ? 'border-amber-500 bg-amber-50 shadow-lg shadow-amber-100' 
+                        : 'border-slate-100 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0 ${
+                        selectedSession === 'morning' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-500'
+                      }`}>
+                        <FiSun />
                       </div>
-                      <p className="text-xl font-black text-slate-900 mt-0.5">8:00 AM – 12:00 PM</p>
-                      <p className="text-xs text-slate-500 mt-1">4-hour window. Arrive within this session.</p>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-bold text-slate-900">Morning Session</h3>
+                          <span className="bg-blue-50 text-blue-600 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">Recommended</span>
+                        </div>
+                        <p className="text-xl font-black text-slate-900 mt-0.5">8:00 AM – 12:00 PM</p>
+                        <p className="text-xs text-slate-500 mt-1">4-hour window. Arrive within this session.</p>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Afternoon Card */}
-                  <div 
-                    onClick={() => setSelectedSession('afternoon')}
-                    className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-5 ${
-                      selectedSession === 'afternoon' 
-                      ? 'border-amber-500 bg-amber-50 shadow-lg shadow-amber-100' 
-                      : 'border-slate-100 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0 ${
-                      selectedSession === 'afternoon' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400'
-                    }`}>
-                      <FiClock />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-slate-900">Afternoon Session</h3>
-                      <p className="text-xl font-black text-slate-900 mt-0.5">2:00 PM – 6:00 PM</p>
-                      <p className="text-xs text-slate-500 mt-1">4-hour window. Arrive within this session.</p>
+                    {/* Afternoon Card */}
+                    <div 
+                      onClick={() => {
+                        if (!selectedDate) {
+                          toast.error('Please select a date first');
+                          return;
+                        }
+                        setSelectedSession('afternoon');
+                      }}
+                      className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-5 ${
+                        selectedSession === 'afternoon' 
+                        ? 'border-amber-500 bg-amber-50 shadow-lg shadow-amber-100' 
+                        : 'border-slate-100 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0 ${
+                        selectedSession === 'afternoon' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400'
+                      }`}>
+                        <FiClock />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-slate-900">Afternoon Session</h3>
+                        <p className="text-xl font-black text-slate-900 mt-0.5">2:00 PM – 6:00 PM</p>
+                        <p className="text-xs text-slate-500 mt-1">4-hour window. Arrive within this session.</p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>

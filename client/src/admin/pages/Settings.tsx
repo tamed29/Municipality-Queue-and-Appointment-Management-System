@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAdmin } from '../components/AdminContext';
-import { FiSave, FiAlertOctagon, FiCalendar, FiPlus, FiTrash2, FiMessageSquare, FiKey, FiLock } from 'react-icons/fi';
+import { FiSave, FiAlertOctagon, FiCalendar, FiPlus, FiTrash2, FiMessageSquare, FiKey, FiLock, FiInfo } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
+import { getBlockedDates, addBlockedDate, removeBlockedDate, BlockedDate } from '../../store/blockedDatesStore';
 
 const Settings: React.FC = () => {
   const {
@@ -25,8 +26,82 @@ const Settings: React.FC = () => {
   // Announcement State
   const [announcementText, setAnnouncementText] = useState(announcementBanner);
 
-  // New Holiday Date State
-  const [holidayDate, setHolidayDate] = useState('');
+  // Blocked Dates State
+  const [blockedList, setBlockedList] = useState<BlockedDate[]>(() => getBlockedDates());
+  const [selectedBlockDate, setSelectedBlockDate] = useState('');
+  const [newType, setNewType] = useState<'holiday' | 'office_closure' | 'meeting' | 'maintenance' | 'training' | 'other'>('holiday');
+  const [newTitle, setNewTitle] = useState('');
+  const [newDesc, setNewDesc] = useState('');
+  const [affectsAllDepts, setAffectsAllDepts] = useState(true);
+  const [affectedDepts, setAffectedDepts] = useState<string[]>([]);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setBlockedList(getBlockedDates());
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  const handleAddBlockedDateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedBlockDate) {
+      toast.error('Date is required!');
+      return;
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (selectedBlockDate < todayStr) {
+      toast.error('Cannot block past dates!');
+      return;
+    }
+
+    const existing = blockedList.find(b => b.date === selectedBlockDate);
+    if (existing) {
+      toast.error(`Date is already blocked: ${existing.title}`);
+      return;
+    }
+
+    if (!newTitle.trim()) {
+      toast.error('Title/Reason is required!');
+      return;
+    }
+
+    if (!affectsAllDepts && affectedDepts.length === 0) {
+      toast.error('Please select at least one affected department!');
+      return;
+    }
+
+    const newBlockedItem: BlockedDate = {
+      id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      date: selectedBlockDate,
+      type: newType,
+      title: newTitle.trim(),
+      description: newDesc.trim() || undefined,
+      affectedDepartments: affectsAllDepts ? ['ALL'] : affectedDepts,
+      createdBy: 'admin',
+      createdAt: new Date().toISOString()
+    };
+
+    addBlockedDate(newBlockedItem);
+    setBlockedList(getBlockedDates());
+    toast.success(`Date ${selectedBlockDate} blocked successfully!`);
+
+    // Reset Form
+    setSelectedBlockDate('');
+    setNewTitle('');
+    setNewDesc('');
+    setNewType('holiday');
+    setAffectsAllDepts(true);
+    setAffectedDepts([]);
+  };
+
+  const handleRemoveBlockedDate = (id: string, dateStr: string) => {
+    removeBlockedDate(id);
+    setBlockedList(getBlockedDates());
+    toast.error(`Removed blocked date: ${dateStr}`);
+  };
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,13 +122,6 @@ const Settings: React.FC = () => {
   const handleAnnouncementSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     updateAnnouncement(announcementText);
-  };
-
-  const handleAddHolidaySubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!holidayDate) return;
-    addHoliday(holidayDate);
-    setHolidayDate('');
   };
 
   return (
@@ -239,63 +307,202 @@ const Settings: React.FC = () => {
           </form>
         </div>
 
-        {/* Office Holidays Management */}
+        {/* Office Blocked Dates Management */}
         <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-sm space-y-6">
           <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Calendar Exceptions</span>
-              <h3 className="text-slate-900 font-extrabold text-base mt-0.5">Holiday Date management</h3>
+              <h3 className="text-slate-900 font-extrabold text-base mt-0.5">Office Closure & Holiday Management</h3>
             </div>
-            <span className="text-xl">🌴</span>
+            <span className="text-xl">📅</span>
           </div>
 
-          {/* Add Holiday date picker form */}
-          <form onSubmit={handleAddHolidaySubmit} className="flex gap-2 items-end">
-            <div className="flex-1 space-y-1.5">
-              <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Select Exception Date</label>
-              <div className="relative">
+          <form onSubmit={handleAddBlockedDateSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Closure Date</label>
                 <input
                   type="date"
                   required
-                  value={holidayDate}
-                  onChange={(e) => setHolidayDate(e.target.value)}
+                  value={selectedBlockDate}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setSelectedBlockDate(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-2 px-4 text-xs font-semibold text-slate-750 focus:outline-none cursor-pointer"
                 />
               </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Closure Type</label>
+                <select
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value as any)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-2 px-4 text-xs font-semibold text-slate-750 focus:outline-none cursor-pointer"
+                >
+                  <option value="holiday">Public Holiday</option>
+                  <option value="office_closure">Office Closure Day</option>
+                  <option value="meeting">Internal Meeting</option>
+                  <option value="training">Staff Training</option>
+                  <option value="maintenance">System Maintenance</option>
+                  <option value="other">Other Reason</option>
+                </select>
+              </div>
             </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Title / Reason</label>
+              <input
+                type="text"
+                required
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="e.g. Ethiopian New Year, Server Maintenance"
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-2.5 px-4 text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white transition-all shadow-sm"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Description (Optional)</label>
+              <textarea
+                value={newDesc}
+                onChange={(e) => setNewDesc(e.target.value)}
+                placeholder="Provide additional details for citizens..."
+                rows={2}
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white transition-all font-semibold shadow-inner"
+              />
+            </div>
+
+            {/* Affected Departments Section */}
+            <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Affected Departments</label>
+              
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={affectsAllDepts}
+                  onChange={(e) => {
+                    setAffectsAllDepts(e.target.checked);
+                    if (e.target.checked) setAffectedDepts([]);
+                  }}
+                  className="rounded border-slate-350 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                />
+                ⚠️ ALL DEPARTMENTS (Full Closure)
+              </label>
+
+              {!affectsAllDepts && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-200 mt-2 animate-in fade-in duration-200">
+                  {[
+                    { code: 'CIV', name: 'Civil Reg' },
+                    { code: 'RES', name: 'Residence' },
+                    { code: 'BUS', name: 'Business' },
+                    { code: 'LND', name: 'Land' },
+                    { code: 'TAX', name: 'Tax' },
+                    { code: 'CON', name: 'Construction' },
+                    { code: 'PUB', name: 'Public Services' }
+                  ].map(dept => {
+                    const checked = affectedDepts.includes(dept.code);
+                    return (
+                      <label key={dept.code} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setAffectedDepts([...affectedDepts, dept.code]);
+                            } else {
+                              setAffectedDepts(affectedDepts.filter(c => c !== dept.code));
+                            }
+                          }}
+                          className="rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                        />
+                        {dept.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             <button
               type="submit"
-              className="bg-slate-900 hover:bg-slate-950 text-white p-3 rounded-2xl transition-all cursor-pointer shadow-sm shrink-0"
+              className="w-full bg-slate-900 hover:bg-slate-950 text-white font-extrabold text-[11px] uppercase tracking-wider py-3 rounded-2xl transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1.5 animate-pulse"
             >
-              <FiPlus />
+              <FiPlus /> Block selected date
             </button>
           </form>
 
           {/* List exception dates */}
-          <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar pt-2">
-            {holidays.length > 0 ? (
-              holidays.map(date => (
-                <div 
-                  key={date}
-                  className="px-4 py-3 bg-slate-50 border border-slate-150 rounded-2xl flex items-center justify-between text-xs text-slate-700 font-semibold"
-                >
-                  <span className="inline-flex items-center gap-2 tabular-nums">
-                    <FiCalendar className="text-amber-500 shrink-0" /> {date}
-                  </span>
-                  <button
-                    onClick={() => removeHoliday(date)}
-                    title="Remove date"
-                    className="p-1.5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <FiTrash2 />
-                  </button>
+          <div className="space-y-4 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Upcoming Blocked Dates</span>
+              <button
+                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                className="text-[10px] text-slate-500 font-bold uppercase hover:text-amber-600 transition-colors flex items-center gap-1 cursor-pointer bg-slate-50 border border-slate-200 rounded-lg px-2 py-1"
+              >
+                Sort: {sortOrder === 'asc' ? '📅 Earliest' : '📅 Latest'}
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar pt-1">
+              {blockedList.length > 0 ? (
+                [...blockedList]
+                  .sort((a, b) => sortOrder === 'asc' ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date))
+                  .map(item => {
+                    const badge = (() => {
+                      switch (item.type) {
+                        case 'holiday': return { icon: '🔴', text: 'Holiday', style: 'bg-red-50 text-red-650 border border-red-200/50' };
+                        case 'office_closure': return { icon: '🔴', text: 'Closure', style: 'bg-red-50 text-red-650 border border-red-200/50' };
+                        case 'meeting': return { icon: '🟡', text: 'Meeting', style: 'bg-amber-50 text-amber-650 border border-amber-205' };
+                        case 'training': return { icon: '🔵', text: 'Training', style: 'bg-blue-50 text-blue-600 border border-blue-200/50' };
+                        case 'maintenance': return { icon: 'purple', text: 'Maint.', style: 'bg-purple-50 text-purple-650 border border-purple-200/50' };
+                        default: return { icon: '⚫', text: 'Other', style: 'bg-slate-50 text-slate-650 border border-slate-200' };
+                      }
+                    })();
+                    return (
+                      <div 
+                        key={item.id}
+                        className="p-4 bg-slate-50 hover:bg-slate-100/70 border border-slate-150 rounded-2xl flex items-start justify-between gap-3 text-xs transition-colors"
+                      >
+                        <div className="space-y-1.5 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-805 tabular-nums inline-flex items-center gap-1 shrink-0">
+                              <FiCalendar className="text-amber-500" /> {item.date}
+                            </span>
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${badge.style}`}>
+                              {badge.icon} {badge.text}
+                            </span>
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-slate-900 truncate">{item.title}</h4>
+                            {item.description && <p className="text-[10px] text-slate-400 font-medium leading-tight mt-0.5">{item.description}</p>}
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                            <span className="text-[9px] text-slate-405 font-bold uppercase tracking-wider">Restriction:</span>
+                            {item.affectedDepartments.includes('ALL') ? (
+                              <span className="text-[9px] bg-red-500/10 text-red-650 border border-red-500/20 font-black px-1.5 py-0.5 rounded uppercase">All Services</span>
+                            ) : (
+                              item.affectedDepartments.map(code => (
+                                <span key={code} className="text-[9px] bg-slate-200/80 text-slate-700 font-bold px-1.5 py-0.5 rounded">{code}</span>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleRemoveBlockedDate(item.id, item.date)}
+                          title="Remove blocked date"
+                          className="p-1.5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-xl transition-colors cursor-pointer shrink-0"
+                        >
+                          <FiTrash2 className="text-sm" />
+                        </button>
+                      </div>
+                    );
+                  })
+              ) : (
+                <div className="text-center py-8 text-slate-400 text-xs font-semibold">
+                  No upcoming calendar closures configured yet.
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-6 text-slate-400 text-xs font-semibold">
-                No custom office holidays configured yet.
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
         </div>

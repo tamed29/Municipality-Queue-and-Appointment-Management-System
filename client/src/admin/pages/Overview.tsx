@@ -14,7 +14,7 @@ import {
   FiX,
   FiEye
 } from 'react-icons/fi';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from 'recharts';
 import { toast } from 'react-hot-toast';
 
 const Overview: React.FC = () => {
@@ -75,6 +75,39 @@ const Overview: React.FC = () => {
     { name: 'Construction', count: departmentCounts['Construction'] || 0, fill: '#06b6d4' },
     { name: 'Public', count: departmentCounts['Public'] || 0, fill: '#ec4899' }
   ];
+
+  // Hourly breakdown of today's bookings: 08:00 to 18:00 in 2-hour increments
+  const hourlyData = [
+    { time: '08:00', count: 0 },
+    { time: '10:00', count: 0 },
+    { time: '12:00', count: 0 },
+    { time: '14:00', count: 0 },
+    { time: '16:00', count: 0 },
+    { time: '18:00', count: 0 },
+  ];
+
+  todayApps.forEach(app => {
+    let hour = 10; // default middle morning
+    if (app.createdAt) {
+      hour = new Date(app.createdAt).getHours();
+    } else if (app.timeSlot) {
+      const timeStr = app.timeSlot.toLowerCase();
+      const match = timeStr.match(/(\d+):/);
+      if (match) {
+        let h = parseInt(match[1]);
+        if (timeStr.includes('pm') && h < 12) h += 12;
+        if (timeStr.includes('am') && h === 12) h = 0;
+        hour = h;
+      }
+    }
+    
+    if (hour >= 8 && hour < 10) hourlyData[0].count++;
+    else if (hour >= 10 && hour < 12) hourlyData[1].count++;
+    else if (hour >= 12 && hour < 14) hourlyData[2].count++;
+    else if (hour >= 14 && hour < 16) hourlyData[3].count++;
+    else if (hour >= 16 && hour < 18) hourlyData[4].count++;
+    else if (hour >= 18) hourlyData[5].count++;
+  });
 
   // Recent Appointments Table (Last 10)
   const recentAppointments = [...appointments]
@@ -233,6 +266,48 @@ const Overview: React.FC = () => {
           </div>
         </div>
 
+      </div>
+
+      {/* Today's Booking Timeline LineChart */}
+      <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-sm flex flex-col w-full">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+            </span>
+            <div>
+              <span className="text-slate-400 text-xs font-bold uppercase tracking-wider block">Real-time Timeline</span>
+              <h3 className="text-slate-900 font-extrabold text-base mt-0.5">Today's Booking Timeline (Hourly)</h3>
+            </div>
+          </div>
+          <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider bg-amber-50 px-2 py-1 rounded-md animate-pulse">
+            ● LIVE OPERATIONAL STREAM
+          </span>
+        </div>
+
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={hourlyData} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                labelStyle={{ fontWeight: '850', color: '#0f172a', fontSize: '12px' }}
+                itemStyle={{ fontWeight: '650', color: '#3b82f6', fontSize: '12px' }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="count" 
+                stroke="#3b82f6" 
+                strokeWidth={3} 
+                dot={{ r: 5, stroke: '#3b82f6', strokeWidth: 2, fill: '#fff' }}
+                activeDot={{ r: 8, stroke: '#3b82f6', strokeWidth: 2, fill: '#3b82f6' }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* Sub-City Location Workload Distribution & Counter Expansion Advisory */}
