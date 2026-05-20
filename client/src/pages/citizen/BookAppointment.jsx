@@ -494,7 +494,8 @@ const BookAppointment = () => {
 
     } catch (error) {
       console.error(error);
-      toast.error('Failed to submit appointment to server database');
+      const detail = error.response?.data?.detail;
+      toast.error(detail ? `Server Error: ${detail}` : 'Failed to submit appointment to server database');
     } finally {
       setSubmitting(false);
     }
