@@ -4,8 +4,8 @@ import { ADMIN_CREDENTIALS, ADMIN_SESSION_KEY } from '../constants/adminAuth';
 import { FiMail, FiLock, FiEye, FiEyeOff, FiAlertTriangle, FiCalendar, FiShield } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
-import api from '../../api/axios';
-import { useAuth } from '../../store/AuthContext';
+import api from '../api/axios';
+import { useAuth } from '../store/AuthContext';
 
 const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
