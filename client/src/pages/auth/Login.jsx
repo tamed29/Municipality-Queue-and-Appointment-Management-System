@@ -32,7 +32,7 @@ const Login = () => {
           navigate('/dashboard');
         } else {
           // Check hardcoded credentials for Admin if they login here too
-          if (identifier === 'admin@mqams.arba-minch.gov.et' && password === 'MQAMS@Admin2025#') {
+          if (identifier === 'admin@gmail.com' && password === 'admin') {
             sessionStorage.setItem('mqams_admin_session', 'true');
             sessionStorage.setItem('mqams_admin_email', identifier);
             toast.success('System Administrator Authenticated!');

@@ -90,7 +90,7 @@ const AdminLogin: React.FC = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@mqams.arba-minch.gov.et"
+                placeholder="admin@gmail.com"
                 className="w-full bg-slate-950/60 border border-slate-800 hover:border-slate-700 focus:border-amber-500 rounded-2xl py-3.5 pl-11 pr-4 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-medium"
               />
             </div>
