@@ -12,7 +12,13 @@ let db;
 const initDb = async () => {
   if (db) return;
   
-  if (!process.env.DATABASE_URL) {
+  console.log("DEBUG: DATABASE_URL value type is:", typeof process.env.DATABASE_URL);
+  console.log("DEBUG: DATABASE_URL value is:", process.env.DATABASE_URL ? `[length: ${process.env.DATABASE_URL.length}]` : "falsy");
+  if (process.env.DATABASE_URL) {
+    console.log("DEBUG: DATABASE_URL prefix is:", process.env.DATABASE_URL.substring(0, 25));
+  }
+
+  if (!process.env.DATABASE_URL || process.env.DATABASE_URL === "undefined" || process.env.DATABASE_URL === "null") {
     console.error("=========================================================");
     console.error("ERROR: DATABASE_URL environment variable is not defined!");
     console.error("Please configure the DATABASE_URL environment variable in your");
