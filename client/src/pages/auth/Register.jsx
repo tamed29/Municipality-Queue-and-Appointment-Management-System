@@ -34,17 +34,25 @@ const Register = () => {
     }
     
     setLoading(true);
-    setTimeout(() => {
-      try {
-        registerLocal(formData);
-        toast.success('Registration successful');
-        navigate('/dashboard');
-      } catch (error) {
-        toast.error('Registration failed');
-      } finally {
-        setLoading(false);
-      }
-    }, 600);
+    try {
+      const payload = {
+        full_name: formData.full_name,
+        national_id: formData.national_id,
+        phone: formData.phone,
+        email: formData.email,
+        age: parseInt(formData.age),
+        password: formData.password
+      };
+      const res = await api.post('/auth/register', payload);
+      const { token, ...userData } = res.data;
+      login(userData, token);
+      toast.success('Registration successful');
+      navigate('/dashboard');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

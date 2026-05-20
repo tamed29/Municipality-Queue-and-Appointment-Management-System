@@ -19,13 +19,17 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = (userData) => {
+  const login = (userData, token) => {
+    if (token) {
+      localStorage.setItem('token', token);
+    }
     localStorage.setItem('mqams_current_user', JSON.stringify(userData));
     setUser(userData);
   };
 
   const logout = () => {
     localStorage.removeItem('mqams_current_user');
+    localStorage.removeItem('token');
     setUser(null);
     toast.success('Logged out successfully');
   };

@@ -17,36 +17,24 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     
-    // Simulate lookup delay
-    setTimeout(() => {
-      try {
-        const registered = JSON.parse(localStorage.getItem('mqams_registered_users') || '[]');
-        const found = registered.find(
-          u => (u.email === identifier || u.phone === identifier) && u.password === password
-        );
-        
-        if (found) {
-          const { password, ...userData } = found;
-          login(userData);
-          toast.success('Logged in successfully');
-          navigate('/dashboard');
-        } else {
-          // Check hardcoded credentials for Admin if they login here too
-          if (identifier === 'admin@gmail.com' && password === 'admin') {
-            sessionStorage.setItem('mqams_admin_session', 'true');
-            sessionStorage.setItem('mqams_admin_email', identifier);
-            toast.success('System Administrator Authenticated!');
-            navigate('/admin/dashboard');
-          } else {
-            toast.error('Invalid credentials');
-          }
-        }
-      } catch (err) {
-        toast.error('Failed to log in');
-      } finally {
-        setLoading(false);
+    try {
+      const res = await api.post('/auth/login', { identifier, password });
+      const { token, ...userData } = res.data;
+      login(userData, token);
+      toast.success('Logged in successfully');
+      navigate('/dashboard');
+    } catch (err) {
+      if (identifier === 'admin@gmail.com' && password === 'admin') {
+        sessionStorage.setItem('mqams_admin_session', 'true');
+        sessionStorage.setItem('mqams_admin_email', identifier);
+        toast.success('System Administrator Authenticated!');
+        navigate('/admin/dashboard');
+      } else {
+        toast.error(err.response?.data?.message || 'Invalid credentials');
       }
-    }, 600);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
