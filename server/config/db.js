@@ -12,6 +12,15 @@ let db;
 const initDb = async () => {
   if (db) return;
   
+  if (!process.env.DATABASE_URL) {
+    console.error("=========================================================");
+    console.error("ERROR: DATABASE_URL environment variable is not defined!");
+    console.error("Please configure the DATABASE_URL environment variable in your");
+    console.error("Render Environment settings.");
+    console.error("=========================================================");
+    throw new Error("DATABASE_URL environment variable is missing.");
+  }
+
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
