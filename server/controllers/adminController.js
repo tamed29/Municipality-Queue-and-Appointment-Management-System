@@ -183,3 +183,15 @@ export const getStats = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+export const resetDatabase = async (req, res) => {
+  try {
+    console.log("Truncating all tables...");
+    await query('TRUNCATE TABLE feedback, queue, appointments, users, services RESTART IDENTITY CASCADE');
+    console.log("All tables truncated successfully.");
+    res.json({ message: 'Database wiped successfully. You can now start from zero.' });
+  } catch (error) {
+    console.error("Failed to reset DB:", error);
+    res.status(500).json({ message: 'Server error wiping database' });
+  }
+};

@@ -44,7 +44,8 @@ const Register = () => {
         password: formData.password
       };
       const res = await api.post('/auth/register', payload);
-      const { token, ...userData } = res.data;
+      const { token, _id, full_name, ...rest } = res.data;
+      const userData = { id: _id, name: full_name, ...rest };
       login(userData, token);
       toast.success('Registration successful');
       navigate('/dashboard');

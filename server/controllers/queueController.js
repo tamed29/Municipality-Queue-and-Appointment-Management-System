@@ -55,15 +55,21 @@ export const getMyQueueStatus = async (req, res) => {
     const myQueue = result.rows[0];
     
     // Calculate position
-    const positionResult = await query(`
-      SELECT COUNT(*) FROM queue 
-      WHERE status = 'waiting' 
-      AND created_at < $1
-      AND (
-        queue_type = 'priority' OR 
-        ($2 = 'normal' AND queue_type = 'normal')
-      )
-    `, [myQueue.created_at, myQueue.queue_type]);
+    let positionResult;
+    if (myQueue.queue_type === 'priority') {
+      positionResult = await query(`
+        SELECT COUNT(*) FROM queue 
+        WHERE status = 'waiting' 
+        AND created_at < $1
+        AND queue_type = 'priority'
+      `, [myQueue.created_at]);
+    } else {
+      positionResult = await query(`
+        SELECT COUNT(*) FROM queue 
+        WHERE status = 'waiting' 
+        AND created_at < $1
+      `, [myQueue.created_at]);
+    }
     
     myQueue.position = parseInt(positionResult.rows[0].count, 10) + 1;
     // rough estimate 10 mins per person
@@ -82,7 +88,7 @@ export const getQueueSummary = async (req, res) => {
         s.department,
         (SELECT queue_number FROM queue q2 JOIN services s2 ON q2.service_id = s2.id 
          WHERE s2.department = s.department AND q2.status = 'serving' 
-         ORDER BY q2.updated_at DESC LIMIT 1) as current_serving,
+         ORDER BY q2.created_at DESC LIMIT 1) as current_serving,
         (SELECT COUNT(*) FROM queue q3 JOIN services s3 ON q3.service_id = s3.id 
          WHERE s3.department = s.department AND q3.status = 'waiting') as waiting_count
       FROM services s

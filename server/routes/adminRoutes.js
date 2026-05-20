@@ -6,10 +6,13 @@ import {
   createService, updateService, deleteService,
   getQueue, callNextQueue, skipQueue,
   getAppointments, updateAppointmentStatus,
-  getStats
+  getStats, resetDatabase
 } from '../controllers/adminController.js';
 
 const router = express.Router();
+
+// Public route for development reset
+router.delete('/reset-database', resetDatabase);
 
 // Apply auth & admin middleware to all admin routes
 router.use(protect, adminMiddleware);
