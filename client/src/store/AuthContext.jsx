@@ -23,6 +23,9 @@ export const AuthProvider = ({ children }) => {
     if (token) {
       localStorage.setItem('token', token);
     }
+    if (userData.role !== 'admin') {
+      sessionStorage.removeItem('mqams_admin_session');
+    }
     localStorage.setItem('mqams_current_user', JSON.stringify(userData));
     setUser(userData);
   };
@@ -30,6 +33,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('mqams_current_user');
     localStorage.removeItem('token');
+    sessionStorage.removeItem('mqams_admin_session');
     setUser(null);
     toast.success('Logged out successfully');
   };

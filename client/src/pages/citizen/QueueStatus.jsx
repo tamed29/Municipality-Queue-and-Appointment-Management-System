@@ -21,11 +21,16 @@ const QueueStatus = () => {
   const [summary, setSummary] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOffice, setSelectedOffice] = useState(null);
+  const [appointments, setAppointments] = useState([]);
+  const [showAllQueues, setShowAllQueues] = useState(false);
 
   const fetchData = async () => {
     try {
       // Fetch status separately to handle errors better
       api.get('/queue/my-status').then(res => setMyStatus(res.data)).catch(err => console.error('Status fetch error', err));
+      
+      // Fetch user appointments to filter queues
+      api.get('/appointments/my').then(res => setAppointments(res.data || [])).catch(err => console.error('Appointments fetch error', err));
       
       // Fetch summary
       const summaryRes = await api.get('/queue/summary');
@@ -53,6 +58,20 @@ const QueueStatus = () => {
     );
   }
 
+  // Filter user's active departments (pending, approved, called)
+  const activeDepts = new Set(
+    appointments
+      .filter(app => app.status && ['pending', 'approved', 'called'].includes(app.status.toLowerCase()))
+      .map(app => app.department)
+  );
+
+  const hasActiveAppointments = activeDepts.size > 0;
+
+  // Filter summary based on active appointments and toggle state
+  const displayedSummary = (hasActiveAppointments && !showAllQueues)
+    ? summary.filter(office => activeDepts.has(office.department))
+    : summary;
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Header */}
@@ -61,8 +80,23 @@ const QueueStatus = () => {
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Queue Status</h1>
           <p className="text-slate-500 font-medium">Real-time monitoring of all service counters</p>
         </div>
-        <div className="flex items-center gap-2 text-slate-400 text-sm font-bold bg-slate-100 px-4 py-2 rounded-xl self-start">
-          <FiRefreshCw className="animate-spin-slow" /> Live Update
+        <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
+          {hasActiveAppointments && (
+            <button
+              onClick={() => setShowAllQueues(!showAllQueues)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 shadow-md ${
+                showAllQueues 
+                ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200' 
+                : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 shadow-slate-100'
+              }`}
+            >
+              <FiInfo className="text-sm shrink-0" />
+              {showAllQueues ? 'Show Only My Queues' : 'Show All Queues'}
+            </button>
+          )}
+          <div className="flex items-center gap-2 text-slate-500 text-xs font-black bg-slate-100 px-4 py-2 rounded-xl uppercase tracking-wider shadow-sm">
+            <FiRefreshCw className="animate-spin-slow text-slate-400 text-sm" /> Live Update
+          </div>
         </div>
       </div>
 
@@ -123,9 +157,10 @@ const QueueStatus = () => {
       {/* ALL QUEUES SUMMARY GRID */}
       <div className="mb-8">
         <h2 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
-          <FiUsers className="text-amber-500" /> All Department Queues
+          <FiUsers className="text-amber-500" />
+          {hasActiveAppointments && !showAllQueues ? 'My Active Department Queues' : 'All Department Queues'}
         </h2>
-        {summary.length === 0 ? (
+        {displayedSummary.length === 0 ? (
           <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2.5rem] p-12 text-center">
             <FiInfo className="mx-auto text-slate-300 mb-4" size={40} />
             <p className="text-slate-500 font-bold">No active queues found.</p>
@@ -133,7 +168,7 @@ const QueueStatus = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {summary.map((office, idx) => {
+            {displayedSummary.map((office, idx) => {
               const Icon = officeIcons[office.department] || FiUsers;
               return (
                 <div 
