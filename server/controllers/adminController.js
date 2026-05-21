@@ -88,9 +88,23 @@ export const getQueue = async (req, res) => {
 
 export const callNextQueue = async (req, res) => {
   try {
+    // Mark current serving as done
+    const currentQueue = await query("UPDATE queue SET status = 'done' WHERE status = 'serving' RETURNING *");
+    
+    // Update their appointment to completed
+    if (currentQueue.rows.length > 0) {
+      for (const q of currentQueue.rows) {
+        await query(`
+          UPDATE appointments 
+          SET status = 'completed' 
+          WHERE user_id = $1 AND service_id = $2 AND status = 'called'
+        `, [q.user_id, q.service_id]);
+      }
+    }
+
     // Get the highest priority waiting person
     const nextResult = await query(`
-      SELECT id FROM queue 
+      SELECT id, user_id, service_id FROM queue 
       WHERE status = 'waiting' 
       ORDER BY 
         CASE WHEN queue_type = 'priority' THEN 1 ELSE 2 END, 
@@ -99,15 +113,21 @@ export const callNextQueue = async (req, res) => {
     `);
 
     if (nextResult.rows.length === 0) {
-      return res.status(404).json({ message: 'Queue is empty' });
+      return res.status(200).json({ message: 'Current serving marked as done. No more people in queue.' });
     }
 
-    const nextId = nextResult.rows[0].id;
+    const { id, user_id, service_id } = nextResult.rows[0];
 
-    // Mark current serving as done? Or maybe admin does it explicitly. Let's just update this one to serving
-    const updated = await query("UPDATE queue SET status = 'serving' WHERE id = $1 RETURNING *", [nextId]);
+    // Mark as serving
+    const updated = await query("UPDATE queue SET status = 'serving' WHERE id = $1 RETURNING *", [id]);
     
-    // Also emit socket event in real app
+    // Update corresponding appointment status to 'called'
+    await query(`
+      UPDATE appointments 
+      SET status = 'called' 
+      WHERE user_id = $1 AND service_id = $2 AND status IN ('pending', 'approved')
+    `, [user_id, service_id]);
+    
     res.json(updated.rows[0]);
   } catch (error) {
     console.error(error);
@@ -119,6 +139,16 @@ export const skipQueue = async (req, res) => {
   const { id } = req.body;
   try {
     const updated = await query("UPDATE queue SET status = 'skipped' WHERE id = $1 RETURNING *", [id]);
+    
+    if (updated.rows.length > 0) {
+      const q = updated.rows[0];
+      await query(`
+        UPDATE appointments 
+        SET status = 'no-show' 
+        WHERE user_id = $1 AND service_id = $2 AND status IN ('called', 'approved', 'pending')
+      `, [q.user_id, q.service_id]);
+    }
+
     res.json(updated.rows[0]);
   } catch (error) {
     console.error(error);
