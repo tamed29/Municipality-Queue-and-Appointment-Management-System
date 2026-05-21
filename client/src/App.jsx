@@ -13,7 +13,7 @@ import Register from './pages/auth/Register';
 import Dashboard from './pages/citizen/Dashboard';
 import BookAppointment from './pages/citizen/BookAppointment';
 import MyAppointments from './pages/citizen/MyAppointments';
-import QueueStatus from './pages/citizen/QueueStatus';
+
 import Feedback from './pages/citizen/Feedback';
 import Notifications from './pages/citizen/Notifications';
 
@@ -88,7 +88,7 @@ function App() {
         <Route path="/book-appointment" element={<BookAppointment />} />
         <Route path="/my-appointments" element={<MyAppointments />} />
         <Route path="/dashboard/appointments" element={<MyAppointments />} />
-        <Route path="/queue-status" element={<QueueStatus />} />
+
         <Route path="/feedback" element={<Feedback />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/dashboard/notifications" element={<Notifications />} />

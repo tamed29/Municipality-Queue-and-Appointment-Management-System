@@ -14,7 +14,6 @@ const Sidebar = ({ role, isOpen, onClose }) => {
     { name: 'Dashboard', path: '/dashboard', icon: <MdDashboard size={20} /> },
     { name: 'Book Appointment', path: '/book-appointment', icon: <MdEventNote size={20} /> },
     { name: 'My Appointments', path: '/my-appointments', icon: <MdEventNote size={20} /> },
-    { name: 'Queue Status', path: '/queue-status', icon: <MdAccessTime size={20} /> },
     { name: 'Feedback', path: '/feedback', icon: <MdFeedback size={20} /> },
   ];
 

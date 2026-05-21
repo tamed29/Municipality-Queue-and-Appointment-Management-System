@@ -151,10 +151,21 @@ const MyAppointments = () => {
     }
   };
 
-  const filteredAppointments = (filter === 'all'
-    ? appointments
-    : appointments.filter(a => a.status === filter)
-  ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  let appointmentsToFilter = filter === 'all' ? appointments : appointments.filter(a => a.status === filter);
+
+  const active = appointmentsToFilter.filter(
+    apt => apt.status !== 'completed' && apt.status !== 'rejected'
+  ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const completed = appointmentsToFilter.filter(
+    apt => apt.status === 'completed'
+  ).sort((a, b) => new Date(b.completedAt || b.updatedAt).getTime() - new Date(a.completedAt || a.updatedAt).getTime());
+
+  const rejected = appointmentsToFilter.filter(
+    apt => apt.status === 'rejected'
+  ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+  const filteredAppointments = [...active, ...rejected, ...completed];
 
   // Check if any active appointment is 'called' to display the urgent header alert
   const calledAppointment = appointments.find(a => a.status === 'called');
@@ -221,7 +232,7 @@ const MyAppointments = () => {
                 key={appt.id}
                 className={`bg-white border rounded-3xl overflow-hidden transition-all duration-300 shadow-sm hover:shadow-md ${
                   appt.status === 'called' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-slate-100'
-                }`}
+                } ${appt.status === 'completed' ? 'opacity-75 grayscale-[0.5]' : ''}`}
               >
                 {/* Header Card Row */}
                 <div className="p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -262,7 +273,7 @@ const MyAppointments = () => {
 
                     <div className="flex items-center gap-3 ml-auto md:ml-0">
                       <span className={`text-[11px] font-black px-3.5 py-1.5 rounded-full border uppercase tracking-widest ${getStatusStyle(appt.status)}`}>
-                        {appt.status}
+                        {appt.status === 'completed' ? '✅ Completed' : appt.status}
                       </span>
                       
                       <button 
@@ -311,6 +322,13 @@ const MyAppointments = () => {
                             <FiBookOpen size={12} /> Book Again
                           </Link>
                         </div>
+                      </div>
+                    )}
+
+                    {appt.status === 'completed' && (
+                      <div className="bg-slate-100 border-l-[4px] border-slate-400 text-slate-700 p-4 rounded-r-2xl">
+                        <p className="text-xs font-black uppercase tracking-wider">✅ Service Completed</p>
+                        <p className="text-xs mt-1 font-medium">Served on {new Date(appt.completedAt || appt.updatedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}. Thank you for visiting Arba Minch City Administration.</p>
                       </div>
                     )}
 

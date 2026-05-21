@@ -18,7 +18,8 @@ const AppointmentTable: React.FC<AppointmentTableProps> = ({ appointments, onVie
   const { 
     approveAppointment, 
     rejectAppointment, 
-    rescheduleAppointment 
+    rescheduleAppointment,
+    markAppointmentServed
   } = useAdmin();
 
   // Sorting State
@@ -343,6 +344,17 @@ const AppointmentTable: React.FC<AppointmentTableProps> = ({ appointments, onVie
                                 <FiX />
                               </button>
                             </>
+                          )}
+
+                          {/* Mark Served Button for Approved */}
+                          {app.status === 'Approved' && (
+                            <button
+                              onClick={() => markAppointmentServed(app.id)}
+                              title="Mark as Served"
+                              className="p-2 bg-[#16A34A]/10 border border-[#16A34A]/20 text-[#16A34A] rounded-xl hover:bg-[#16A34A] hover:text-white transition-all cursor-pointer shadow-sm"
+                            >
+                              <FiCheck />
+                            </button>
                           )}
 
                           {/* Reschedule Button */}

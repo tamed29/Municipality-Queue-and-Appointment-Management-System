@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import api from '../../api/axios';
+import { getQueueState, saveQueueState, QUEUE_STATE_KEY } from '../../store/queueStore';
 
 // ----------------------------------------------------
 // SHARED TYPES & STORAGE HELPERS
@@ -98,6 +99,7 @@ interface AdminContextType {
   callNextQueue: (deptName: string) => void;
   callAgain: (deptName: string) => void;
   markServed: (deptName: string) => void;
+  markAppointmentServed: (id: string) => void;
   moveQueueItemUp: (deptName: string, ticketNumber: string, isPriority: boolean) => void;
   markQueueItemNoShow: (deptName: string, ticketNumber: string, isPriority: boolean) => void;
   toggleQueuePause: (deptName: string) => void;
@@ -401,7 +403,13 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           'no-show': 'no-show',
           'cancelled': 'rejected'
         };
-        const storageStatus = statusMap[dbApp.status.toLowerCase()] || 'pending';
+        let storageStatus = statusMap[dbApp.status.toLowerCase()] || 'pending';
+
+        // Override storage status if local queueState says it's called or served
+        const qState = getQueueState();
+        if (qState.servedIds.includes(ticketId)) storageStatus = 'completed';
+        else if (qState.calledIds.includes(ticketId)) storageStatus = 'called';
+        else if (qState.noShowIds.includes(ticketId)) storageStatus = 'no-show';
 
         const storageApp = {
           id: ticketId,
@@ -591,8 +599,16 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const regularQueue = waitingItems.filter(item => item.priorityType === 'Regular');
 
       // Sort priority queue
-      const priorityWeights = { Elderly: 3, Pregnant: 2, Disabled: 1, Regular: 0 };
-      priorityQueue.sort((a, b) => priorityWeights[b.priorityType] - priorityWeights[a.priorityType]);
+      const priorityWeights: Record<string, number> = { Elderly: 3, Disabled: 2, Pregnant: 1, Regular: 0 };
+      priorityQueue.sort((a, b) => {
+        if (priorityWeights[b.priorityType] !== priorityWeights[a.priorityType]) {
+          return priorityWeights[b.priorityType] - priorityWeights[a.priorityType];
+        }
+        return a.time.localeCompare(b.time);
+      });
+
+      // Sort regular queue
+      regularQueue.sort((a, b) => a.time.localeCompare(b.time));
 
       initialQueues[dept] = {
         currentlyServing,
@@ -813,7 +829,6 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const newPriority = [...deptQueue.priorityQueue];
     const newRegular = [...deptQueue.regularQueue];
 
-    // Priority takes precedence
     if (newPriority.length > 0) {
       nextServingItem = newPriority.shift() || null;
     } else if (newRegular.length > 0) {
@@ -825,43 +840,58 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    // Complete previously active serving ticket if it existed
-    let updatedApps = [...appointments];
-    if (deptQueue.currentlyServing) {
-      const prevTicket = deptQueue.currentlyServing.ticketNumber;
-      updatedApps = updatedApps.map(app => {
-        const appTicket = app.id.replace('CIV-', 'C-').replace('LAN-', 'L-').replace('BUS-', 'B-').replace('TAX-', 'T-').replace('CON-', 'K-').replace('RES-', 'R-').replace('PUB-', 'P-');
-        if (appTicket === prevTicket) {
-          return { ...app, status: 'Completed' as const };
-        }
-        return app;
-      });
-    }
-
-    // Update status of called ticket to 'Called'
     const targetTicket = nextServingItem.ticketNumber;
-    updatedApps = updatedApps.map(app => {
+    let targetId = '';
+
+    // Complete previously active serving ticket if it existed
+    const appsRaw = JSON.parse(localStorage.getItem('mqams_appointments') || '[]');
+    let updatedApps = appsRaw.map((app: any) => {
       const appTicket = app.id.replace('CIV-', 'C-').replace('LAN-', 'L-').replace('BUS-', 'B-').replace('TAX-', 'T-').replace('CON-', 'K-').replace('RES-', 'R-').replace('PUB-', 'P-');
+      
+      if (deptQueue.currentlyServing && appTicket === deptQueue.currentlyServing.ticketNumber) {
+        return { ...app, status: 'completed', updatedAt: new Date().toISOString(), completedAt: new Date().toISOString() };
+      }
+      
       if (appTicket === targetTicket) {
-        // Dispatch instant called notification
+        targetId = app.id;
         dispatchCitizenNotification(
           app.citizenId,
           'queue_called',
           '🔔 You Are Being Called NOW!',
-          `Queue ${appTicket} for ${app.serviceName} — Please proceed to ${deptName} counter immediately.`,
+          `Queue ${appTicket} for ${app.service} — Please proceed to ${deptName} counter immediately.`,
           app.id
         );
-        return { ...app, status: 'Called' as const };
+        return { ...app, status: 'called', updatedAt: new Date().toISOString(), calledAt: new Date().toISOString() };
       }
       return app;
     });
 
-    commitAppointmentsToStorage(updatedApps);
+    localStorage.setItem('mqams_appointments', JSON.stringify(updatedApps));
+
+    if (targetId) {
+      const qState = getQueueState();
+      if (!qState.calledIds.includes(targetId)) {
+        qState.calledIds.push(targetId);
+      }
+      if (deptQueue.currentlyServing) {
+        // Find the id of the currently serving to move it to served
+        const prevApp = appsRaw.find((a: any) => a.id.replace('CIV-', 'C-').replace('LAN-', 'L-').replace('BUS-', 'B-').replace('TAX-', 'T-').replace('CON-', 'K-').replace('RES-', 'R-').replace('PUB-', 'P-') === deptQueue.currentlyServing?.ticketNumber);
+        if (prevApp) {
+          qState.calledIds = qState.calledIds.filter(id => id !== prevApp.id);
+          if (!qState.servedIds.includes(prevApp.id)) {
+            qState.servedIds.push(prevApp.id);
+          }
+        }
+      }
+      saveQueueState(qState);
+    }
+
+    window.dispatchEvent(new StorageEvent('storage', { key: 'mqams_appointments' }));
 
     // Audio text speech synthesis call
     const speakMessage = `Calling ticket number ${nextServingItem.ticketNumber}, ${nextServingItem.citizenName}, to counter ${deptName}`;
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel(); // clear previous speech queue
+      window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(speakMessage);
       utterance.rate = 0.85;
       window.speechSynthesis.speak(utterance);
@@ -894,16 +924,64 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    const updated = appointments.map(app => {
+    let targetId = '';
+    const appsRaw = JSON.parse(localStorage.getItem('mqams_appointments') || '[]');
+    const updatedApps = appsRaw.map((app: any) => {
       const appTicket = app.id.replace('CIV-', 'C-').replace('LAN-', 'L-').replace('BUS-', 'B-').replace('TAX-', 'T-').replace('CON-', 'K-').replace('RES-', 'R-').replace('PUB-', 'P-');
       if (appTicket === active.ticketNumber) {
-        return { ...app, status: 'Completed' as const };
+        targetId = app.id;
+        return { ...app, status: 'completed', updatedAt: new Date().toISOString(), completedAt: new Date().toISOString() };
       }
       return app;
     });
+    localStorage.setItem('mqams_appointments', JSON.stringify(updatedApps));
 
-    commitAppointmentsToStorage(updated);
+    if (targetId) {
+      const qState = getQueueState();
+      qState.calledIds = qState.calledIds.filter(id => id !== targetId);
+      if (!qState.servedIds.includes(targetId)) {
+        qState.servedIds.push(targetId);
+      }
+      saveQueueState(qState);
+    }
+
+    window.dispatchEvent(new StorageEvent('storage', { key: 'mqams_appointments' }));
     toast.success(`Completed serving: ${active.ticketNumber}`);
+  };
+
+  const markAppointmentServed = (id: string) => {
+    const appsRaw = JSON.parse(localStorage.getItem('mqams_appointments') || '[]');
+    let citizenId = '';
+    let serviceName = '';
+    const updatedApps = appsRaw.map((app: any) => {
+      if (app.id === id) {
+        citizenId = app.citizenId;
+        serviceName = app.service || app.serviceName;
+        return { ...app, status: 'completed', updatedAt: new Date().toISOString(), completedAt: new Date().toISOString() };
+      }
+      return app;
+    });
+    localStorage.setItem('mqams_appointments', JSON.stringify(updatedApps));
+
+    const qState = getQueueState();
+    qState.calledIds = qState.calledIds.filter(cid => cid !== id);
+    if (!qState.servedIds.includes(id)) {
+      qState.servedIds.push(id);
+    }
+    saveQueueState(qState);
+
+    if (citizenId) {
+      dispatchCitizenNotification(
+        citizenId,
+        'completed',
+        '✅ Service Completed',
+        `Your appointment ${id} for ${serviceName} has been completed. Thank you for visiting Arba Minch City Administration.`,
+        id
+      );
+    }
+
+    window.dispatchEvent(new StorageEvent('storage', { key: 'mqams_appointments' }));
+    toast.success(`✅ Appointment ${id} marked as served`);
   };
 
   const moveQueueItemUp = (deptName: string, ticketNumber: string, isPriority: boolean) => {
@@ -914,6 +992,13 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const updated = appointments.map(app => {
       const appTicket = app.id.replace('CIV-', 'C-').replace('LAN-', 'L-').replace('BUS-', 'B-').replace('TAX-', 'T-').replace('CON-', 'K-').replace('RES-', 'R-').replace('PUB-', 'P-');
       if (appTicket === ticketNumber) {
+        // Add to noShowIds
+        const qState = getQueueState();
+        if (!qState.noShowIds.includes(app.id)) {
+          qState.noShowIds.push(app.id);
+        }
+        saveQueueState(qState);
+
         return { ...app, status: 'No-show' as const };
       }
       return app;
@@ -1014,6 +1099,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         callNextQueue,
         callAgain,
         markServed,
+        markAppointmentServed,
         moveQueueItemUp,
         markQueueItemNoShow,
         toggleQueuePause,
