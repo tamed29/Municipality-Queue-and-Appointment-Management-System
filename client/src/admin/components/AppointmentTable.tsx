@@ -346,12 +346,12 @@ const AppointmentTable: React.FC<AppointmentTableProps> = ({ appointments, onVie
                             </>
                           )}
 
-                          {/* Mark Served Button for Approved */}
-                          {app.status === 'Approved' && (
+                          {/* Mark Served Button for Approved / Called */}
+                          {(app.status === 'Approved' || app.status === 'Called') && (
                             <button
                               onClick={() => markAppointmentServed(app.id)}
-                              title="Mark as Served"
-                              className="p-2 bg-[#16A34A]/10 border border-[#16A34A]/20 text-[#16A34A] rounded-xl hover:bg-[#16A34A] hover:text-white transition-all cursor-pointer shadow-sm"
+                              title="Mark as Completed"
+                              className="p-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-slate-950 transition-all cursor-pointer shadow-sm"
                             >
                               <FiCheck />
                             </button>

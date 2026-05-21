@@ -821,7 +821,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     toast.success(`Walk-in ticket added! Sequence ID: ${ticketId}`);
   };
 
-  const callNextQueue = (deptName: string) => {
+  const callNextQueue = async (deptName: string) => {
     const deptQueue = queues[deptName];
     if (!deptQueue) return;
 
@@ -854,6 +854,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       if (appTicket === targetTicket) {
         targetId = app.id;
+        const targetDbId = app.dbId || app.id;
+        try {
+          api.put(`/admin/appointments/${targetDbId}/status`, { status: 'called' });
+        } catch(e) {}
         dispatchCitizenNotification(
           app.citizenId,
           'queue_called',
@@ -881,6 +885,9 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (!qState.servedIds.includes(prevApp.id)) {
             qState.servedIds.push(prevApp.id);
           }
+          try {
+            api.put(`/admin/appointments/${prevApp.dbId || prevApp.id}/status`, { status: 'completed' });
+          } catch(e) {}
         }
       }
       saveQueueState(qState);
@@ -917,7 +924,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     toast.success(`Recalled Ticket: ${active.ticketNumber}`);
   };
 
-  const markServed = (deptName: string) => {
+  const markServed = async (deptName: string) => {
     const active = queues[deptName]?.currentlyServing;
     if (!active) {
       toast.error('No ticket is currently in serving status.');
@@ -925,16 +932,24 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     let targetId = '';
+    let targetDbId = '';
     const appsRaw = JSON.parse(localStorage.getItem('mqams_appointments') || '[]');
     const updatedApps = appsRaw.map((app: any) => {
       const appTicket = app.id.replace('CIV-', 'C-').replace('LAN-', 'L-').replace('BUS-', 'B-').replace('TAX-', 'T-').replace('CON-', 'K-').replace('RES-', 'R-').replace('PUB-', 'P-');
       if (appTicket === active.ticketNumber) {
         targetId = app.id;
+        targetDbId = app.dbId || app.id;
         return { ...app, status: 'completed', updatedAt: new Date().toISOString(), completedAt: new Date().toISOString() };
       }
       return app;
     });
     localStorage.setItem('mqams_appointments', JSON.stringify(updatedApps));
+
+    if (targetDbId) {
+      try {
+        await api.put(`/admin/appointments/${targetDbId}/status`, { status: 'completed' });
+      } catch (err) {}
+    }
 
     if (targetId) {
       const qState = getQueueState();
@@ -949,19 +964,27 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     toast.success(`Completed serving: ${active.ticketNumber}`);
   };
 
-  const markAppointmentServed = (id: string) => {
+  const markAppointmentServed = async (id: string) => {
     const appsRaw = JSON.parse(localStorage.getItem('mqams_appointments') || '[]');
     let citizenId = '';
     let serviceName = '';
+    let targetDbId = '';
     const updatedApps = appsRaw.map((app: any) => {
       if (app.id === id) {
         citizenId = app.citizenId;
         serviceName = app.service || app.serviceName;
+        targetDbId = app.dbId || app.id;
         return { ...app, status: 'completed', updatedAt: new Date().toISOString(), completedAt: new Date().toISOString() };
       }
       return app;
     });
     localStorage.setItem('mqams_appointments', JSON.stringify(updatedApps));
+
+    if (targetDbId) {
+      try {
+        await api.put(`/admin/appointments/${targetDbId}/status`, { status: 'completed' });
+      } catch (err) {}
+    }
 
     const qState = getQueueState();
     qState.calledIds = qState.calledIds.filter(cid => cid !== id);

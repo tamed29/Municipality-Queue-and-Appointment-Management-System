@@ -74,7 +74,7 @@ export default function Dashboard() {
     <div className="max-w-6xl mx-auto w-full min-w-0">
       {/* Welcome Header */}
       <div className="mb-10 w-full">
-        <h1 className="text-3xl font-bold text-secondary block w-full">Welcome back, {user?.full_name}!</h1>
+        <h1 className="text-3xl font-bold text-secondary block w-full">Welcome back, {user?.full_name || user?.name || 'Citizen'}!</h1>
         <p className="text-muted mt-2 block w-full">Manage your municipal services and appointments efficiently.</p>
       </div>
 
@@ -101,15 +101,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full">
-        {/* Quick Actions & Queue Status */}
-        <div className="lg:col-span-2 space-y-8 w-full min-w-0">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full">
+        {/* Quick Actions */}
+        <div className="space-y-8 w-full min-w-0">
           
-
-
           {/* Quick Services Grid */}
-          <div className="flex overflow-x-auto pb-6 gap-4 md:grid md:grid-cols-2 md:overflow-visible w-full scrollbar-hide snap-x scroll-pl-4">
-            <Link to="/book-appointment" className="group bg-white p-6 rounded-[var(--radius-card)] border border-border hover:border-primary hover:shadow-lg transition-all flex items-center min-w-[280px] md:min-w-0 md:w-full snap-start shadow-sm">
+          <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4 w-full">
+            <Link to="/book-appointment" className="group bg-white p-6 rounded-[var(--radius-card)] border border-border hover:border-primary hover:shadow-lg transition-all flex items-center w-full shadow-sm">
               <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mr-4 group-hover:bg-primary group-hover:text-white transition-colors shrink-0">
                 <MdEventAvailable size={28} />
               </div>
@@ -118,7 +116,7 @@ export default function Dashboard() {
                 <p className="text-xs text-muted mt-1 block w-full">Schedule a visit in advance</p>
               </div>
             </Link>
-            <Link to="/feedback" className="group bg-white p-6 rounded-[var(--radius-card)] border border-border hover:border-primary hover:shadow-lg transition-all flex items-center min-w-[280px] md:min-w-0 md:w-full snap-start shadow-sm">
+            <Link to="/feedback" className="group bg-white p-6 rounded-[var(--radius-card)] border border-border hover:border-primary hover:shadow-lg transition-all flex items-center w-full shadow-sm">
               <div className="w-12 h-12 rounded-2xl bg-accent/10 text-accent flex items-center justify-center mr-4 group-hover:bg-accent group-hover:text-white transition-colors shrink-0">
                 <MdHistory size={28} />
               </div>
