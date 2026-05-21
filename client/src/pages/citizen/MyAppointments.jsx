@@ -153,7 +153,11 @@ const MyAppointments = () => {
 
   let appointmentsToFilter = filter === 'all' ? appointments : appointments.filter(a => a.status === filter);
 
-  const filteredAppointments = [...appointmentsToFilter].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const filteredAppointments = [...appointmentsToFilter].sort((a, b) => {
+    const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+    const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+    return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+  });
 
   // Check if any active appointment is 'called' to display the urgent header alert
   const calledAppointment = appointments.find(a => a.status === 'called');
