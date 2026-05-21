@@ -153,19 +153,7 @@ const MyAppointments = () => {
 
   let appointmentsToFilter = filter === 'all' ? appointments : appointments.filter(a => a.status === filter);
 
-  const active = appointmentsToFilter.filter(
-    apt => apt.status !== 'completed' && apt.status !== 'rejected'
-  ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-  const completed = appointmentsToFilter.filter(
-    apt => apt.status === 'completed'
-  ).sort((a, b) => new Date(b.completedAt || b.updatedAt).getTime() - new Date(a.completedAt || a.updatedAt).getTime());
-
-  const rejected = appointmentsToFilter.filter(
-    apt => apt.status === 'rejected'
-  ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
-  const filteredAppointments = [...active, ...rejected, ...completed];
+  const filteredAppointments = [...appointmentsToFilter].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   // Check if any active appointment is 'called' to display the urgent header alert
   const calledAppointment = appointments.find(a => a.status === 'called');
