@@ -21,7 +21,7 @@ export const registerUser = async (req, res) => {
     const password_hash = await bcrypt.hash(password, salt);
 
     const newUser = await query(
-      'INSERT INTO users (full_name, national_id, phone, email, age, password_hash) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, full_name, email, role',
+      'INSERT INTO users (full_name, national_id, phone, email, age, password_hash) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, full_name, email, role, national_id, phone, age, is_active',
       [full_name, national_id, phone, email, age, password_hash]
     );
 
@@ -32,6 +32,10 @@ export const registerUser = async (req, res) => {
       full_name: user.full_name,
       email: user.email,
       role: user.role,
+      national_id: user.national_id,
+      phone: user.phone,
+      age: user.age,
+      is_active: user.is_active,
       token: generateToken(user.id),
     });
   } catch (error) {
@@ -65,6 +69,10 @@ export const loginUser = async (req, res) => {
       full_name: user.full_name,
       email: user.email,
       role: user.role,
+      national_id: user.national_id,
+      phone: user.phone,
+      age: user.age,
+      is_active: user.is_active,
       token: generateToken(user.id),
     });
   } catch (error) {
@@ -79,5 +87,9 @@ export const getMe = async (req, res) => {
     full_name: req.user.full_name,
     email: req.user.email,
     role: req.user.role,
+    national_id: req.user.national_id,
+    phone: req.user.phone,
+    age: req.user.age,
+    is_active: req.user.is_active,
   });
 };

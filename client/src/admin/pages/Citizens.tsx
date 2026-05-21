@@ -34,10 +34,10 @@ const Citizens: React.FC = () => {
   const filteredCitizens = citizens.filter(cit => {
     const term = searchTerm.toLowerCase();
     return (
-      cit.fullName.toLowerCase().includes(term) ||
-      cit.nationalId.toLowerCase().includes(term) ||
-      cit.phone.toLowerCase().includes(term) ||
-      cit.email.toLowerCase().includes(term)
+      (cit.fullName || '').toLowerCase().includes(term) ||
+      (cit.nationalId || '').toLowerCase().includes(term) ||
+      (cit.phone || '').toLowerCase().includes(term) ||
+      (cit.email || '').toLowerCase().includes(term)
     );
   });
 
@@ -154,8 +154,8 @@ const Citizens: React.FC = () => {
                     
                     {/* Priority Type Badge */}
                     <td className="py-4.5 px-4">
-                      <span className={`inline-flex items-center gap-1.5 text-[10.5px] font-bold uppercase px-2.5 py-0.5 rounded-full border ${getPriorityBadgeColor(cit.priorityType)}`}>
-                        {getPriorityIcon(cit.priorityType)} {cit.priorityType}
+                      <span className={`inline-flex items-center gap-1.5 text-[10.5px] font-bold uppercase px-2.5 py-0.5 rounded-full border ${getPriorityBadgeColor(cit.priorityType || 'Regular')}`}>
+                        {getPriorityIcon(cit.priorityType || 'Regular')} {cit.priorityType || 'Regular'}
                       </span>
                     </td>
 

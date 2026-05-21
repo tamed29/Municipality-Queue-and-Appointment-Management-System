@@ -20,7 +20,43 @@ const Login = () => {
     try {
       const res = await api.post('/auth/login', { identifier, password });
       const { token, _id, full_name, ...rest } = res.data;
-      const userData = { id: _id, name: full_name, ...rest };
+      
+      // Look up if user has a stored subCity in local storage to keep it consistent
+      let localSubCity = 'Secha Sub-City';
+      try {
+        const registered = JSON.parse(localStorage.getItem('mqams_registered_users') || '[]');
+        const existing = registered.find(u => String(u.id) === String(_id) || u.email === rest.email || u.nationalId === rest.national_id);
+        if (existing && existing.subCity) {
+          localSubCity = existing.subCity;
+        }
+      } catch (err) {
+        console.error('Failed to lookup local subcity', err);
+      }
+
+      const userData = { 
+        id: String(_id), 
+        name: full_name, 
+        nationalId: rest.national_id,
+        priorityType: rest.age >= 60 ? 'Elderly' : 'Regular',
+        subCity: localSubCity,
+        ...rest 
+      };
+
+      // Store in registered users catalog for admin synchronization
+      try {
+        const registered = JSON.parse(localStorage.getItem('mqams_registered_users') || '[]');
+        const index = registered.findIndex(u => String(u.id) === String(_id));
+        if (index > -1) {
+          // Update details
+          registered[index] = { ...registered[index], ...userData };
+        } else {
+          registered.push(userData);
+        }
+        localStorage.setItem('mqams_registered_users', JSON.stringify(registered));
+      } catch (err) {
+        console.error('Failed to sync user to local storage citizen directory', err);
+      }
+
       login(userData, token);
       toast.success('Logged in successfully');
       

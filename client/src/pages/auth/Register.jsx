@@ -45,7 +45,26 @@ const Register = () => {
       };
       const res = await api.post('/auth/register', payload);
       const { token, _id, full_name, ...rest } = res.data;
-      const userData = { id: _id, name: full_name, ...rest };
+      const userData = { 
+        id: String(_id), 
+        name: full_name, 
+        nationalId: rest.national_id,
+        priorityType: rest.age >= 60 ? 'Elderly' : 'Regular',
+        subCity: formData.subCity || 'Secha Sub-City',
+        ...rest 
+      };
+
+      // Store in registered users catalog for admin synchronization
+      try {
+        const registered = JSON.parse(localStorage.getItem('mqams_registered_users') || '[]');
+        if (!registered.some(u => String(u.id) === String(_id))) {
+          registered.push(userData);
+          localStorage.setItem('mqams_registered_users', JSON.stringify(registered));
+        }
+      } catch (err) {
+        console.error('Failed to sync user to local storage citizen directory', err);
+      }
+
       login(userData, token);
       toast.success('Registration successful');
       navigate('/dashboard');
