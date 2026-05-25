@@ -32,8 +32,13 @@ const Appointments: React.FC = () => {
 
     return matchesSearch && matchesDept && matchesStatus && matchesDate;
   }).sort((a, b) => {
-    if (a.dbId && b.dbId) return b.dbId - a.dbId;
-    return (b.id || '').localeCompare(a.id || '');
+    // Extract the numerical ticket part (e.g., 0010 from TAX-2026-0010)
+    const getNum = (idStr: string) => {
+      if (!idStr) return 0;
+      const parts = idStr.split('-');
+      return parseInt(parts[parts.length - 1], 10) || 0;
+    };
+    return getNum(b.id) - getNum(a.id);
   });
 
   const handleResetFilters = () => {
