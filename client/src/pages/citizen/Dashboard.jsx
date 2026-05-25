@@ -101,12 +101,9 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full">
+      <div className="w-full space-y-8">
         {/* Quick Actions */}
-        <div className="space-y-8 w-full min-w-0">
-          
-          {/* Quick Services Grid */}
-          <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4 w-full">
+        <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4 w-full">
             <Link to="/book-appointment" className="group bg-white p-6 rounded-[var(--radius-card)] border border-border hover:border-primary hover:shadow-lg transition-all flex items-center w-full shadow-sm">
               <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mr-4 group-hover:bg-primary group-hover:text-white transition-colors shrink-0">
                 <MdEventAvailable size={28} />
@@ -125,12 +122,11 @@ export default function Dashboard() {
                 <p className="text-xs text-muted mt-1 block w-full">Rate our services</p>
               </div>
             </Link>
-          </div>
         </div>
 
-        {/* Right Sidebar - Recent Appointments & Closures */}
-        <div className="w-full min-w-0 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="bg-card rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-6 border border-border w-full flex flex-col">
+        {/* Recent Appointments & Closures */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="bg-card rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-6 border border-border w-full flex flex-col min-w-0">
             <h2 className="text-xl font-bold text-secondary mb-6 flex items-center shrink-0">
               <MdEventAvailable className="mr-2 text-primary" size={24} /> 
               <span className="block">Recent Bookings</span>
@@ -170,7 +166,7 @@ export default function Dashboard() {
           </div>
 
           {/* Upcoming Closures Card */}
-          <div className="bg-card rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-6 border border-border w-full flex flex-col space-y-4">
+          <div className="bg-card rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-6 border border-border w-full flex flex-col space-y-4 min-w-0">
             <h2 className="text-xl font-bold text-secondary flex items-center shrink-0">
               <MdDateRange className="mr-2 text-primary" size={24} /> 
               <span className="block">Office Closures</span>

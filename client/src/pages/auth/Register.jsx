@@ -24,7 +24,13 @@ const Register = () => {
   const isElderly = parseInt(formData.age) >= 60;
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    let { name, value } = e.target;
+    if (name === 'national_id') {
+      value = value.replace(/\D/g, '').slice(0, 13);
+    } else if (name === 'phone') {
+      value = value.replace(/\D/g, '').slice(0, 10);
+    }
+    setFormData({ ...formData, [name]: value });
   };
 
   const handleSubmit = async (e) => {
@@ -103,6 +109,7 @@ const Register = () => {
               <label className="block text-sm font-medium text-secondary mb-1">National ID</label>
               <input 
                 type="text" name="national_id" required value={formData.national_id} onChange={handleChange}
+                pattern="\d{13}" maxLength="13" title="National ID must be exactly 13 digits" placeholder="13 digits"
                 className="w-full px-4 py-2 border border-border rounded-[var(--radius-input)] focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
@@ -140,6 +147,7 @@ const Register = () => {
             <label className="block text-sm font-medium text-secondary mb-1">Phone Number</label>
             <input 
               type="tel" name="phone" required value={formData.phone} onChange={handleChange}
+              pattern="\d{10}" maxLength="10" title="Phone number must be exactly 10 digits" placeholder="10 digits"
               className="w-full px-4 py-2 border border-border rounded-[var(--radius-input)] focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
