@@ -82,7 +82,7 @@ const initDb = async () => {
       const adminCheck = await sqliteDb.get("SELECT id FROM users WHERE role = 'admin';");
       if (!adminCheck) {
         console.log("Seeding default admin user into SQLite...");
-        const salt = await bcrypt.genSalt(10);
+        const salt = await bcrypt.genSalt(4);
         const passwordHash = await bcrypt.hash('admin', salt);
         await sqliteDb.run(
           `INSERT INTO users (full_name, national_id, phone, email, age, password_hash, role, is_active) 
@@ -123,7 +123,7 @@ const initDb = async () => {
       const adminCheck = await db.query("SELECT id FROM users WHERE role = 'admin';");
       if (adminCheck.rowCount === 0) {
         console.log("Seeding default admin user into PostgreSQL...");
-        const salt = await bcrypt.genSalt(10);
+        const salt = await bcrypt.genSalt(4);
         const passwordHash = await bcrypt.hash('admin', salt);
         await db.query(
           `INSERT INTO users (full_name, national_id, phone, email, age, password_hash, role, is_active) 
@@ -148,7 +148,7 @@ export const query = async (text, params = []) => {
   
   try {
     if (isSqlite) {
-      let sql = text;
+      let sql = text.replace(/\$(\d+)/g, '?$1');
       
       // Handle PostgreSQL-specific TRUNCATE command
       if (sql.toUpperCase().includes('TRUNCATE TABLE')) {

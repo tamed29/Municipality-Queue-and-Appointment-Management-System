@@ -17,7 +17,7 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: 'User with this National ID or Email already exists' });
     }
 
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(4);
     const password_hash = await bcrypt.hash(password, salt);
 
     const newUser = await query(

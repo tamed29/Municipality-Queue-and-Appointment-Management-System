@@ -263,7 +263,7 @@ export const resetDatabase = async (req, res) => {
 
     // Seed Admin User
     const bcrypt = await import('bcrypt');
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(4);
     const password_hash = await bcrypt.hash('admin', salt);
     await query(`
       INSERT INTO users (full_name, national_id, phone, email, age, password_hash, role)
