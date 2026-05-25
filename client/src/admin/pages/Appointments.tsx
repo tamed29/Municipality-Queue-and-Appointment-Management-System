@@ -31,6 +31,9 @@ const Appointments: React.FC = () => {
     const matchesDate = !selectedDate || app.date === selectedDate;
 
     return matchesSearch && matchesDept && matchesStatus && matchesDate;
+  }).sort((a, b) => {
+    if (a.dbId && b.dbId) return b.dbId - a.dbId;
+    return (b.id || '').localeCompare(a.id || '');
   });
 
   const handleResetFilters = () => {
